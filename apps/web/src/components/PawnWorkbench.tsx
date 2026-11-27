@@ -826,8 +826,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   <button
                     type="button"
                     onClick={() => {
-                      setAssetType("PHYSICAL");
-                      setAppraisal(null);
+                      if (assetType !== "PHYSICAL") applyPreset("iphone");
                     }}
                     className={`rounded py-1.5 text-xs font-semibold transition-colors ${
                       assetType === "PHYSICAL"
@@ -840,8 +839,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   <button
                     type="button"
                     onClick={() => {
-                      setAssetType("DIGITAL");
-                      setAppraisal(null);
+                      if (assetType !== "DIGITAL") applyPreset("nft");
                     }}
                     className={`rounded py-1.5 text-xs font-semibold transition-colors ${
                       assetType === "DIGITAL"
