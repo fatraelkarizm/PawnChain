@@ -26,26 +26,30 @@ export async function POST(req: Request) {
     const voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
 
     if (apiKey) {
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: script,
-          model_id: "eleven_multilingual_v2",
-        }),
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer());
-        return NextResponse.json({
-          provider: "elevenlabs",
-          script,
-          audioDataUrl: `data:audio/mpeg;base64,${buffer.toString("base64")}`,
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: "POST",
+          headers: {
+            "xi-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: script,
+            model_id: "eleven_multilingual_v2",
+          }),
+          signal: AbortSignal.timeout(10000),
         });
+
+        if (res.ok) {
+          const buffer = Buffer.from(await res.arrayBuffer());
+          return NextResponse.json({
+            provider: "elevenlabs",
+            script,
+            audioDataUrl: `data:audio/mpeg;base64,${buffer.toString("base64")}`,
+          });
+        }
+      } catch {
+        // Fall through to browser_speech_fallback if ElevenLabs times out or is unreachable.
       }
     }
 
