@@ -34,19 +34,22 @@ export async function POST(req: Request) {
     const serialRaw = assetType === "PHYSICAL" ? (body.serialNumber || "").trim() : "";
 
     if (!brand || !model) {
-      return fail(400, "Merek dan model aset wajib diisi untuk appraisal.");
+      return fail(400, "Brand and asset name are required for valuation.");
     }
 
     let mintAddress: string | null = null;
     if (mode === "devnet") {
       if (assetType === "PHYSICAL" && normalizeIdentifier(serialRaw).length < 5) {
-        return fail(400, "Serial/IMEI wajib diisi untuk gadai barang fisik di devnet.");
+        return fail(400, "Serial number / IMEI is required for physical collateral on Devnet.");
       }
-      if (assetType === "DIGITAL") {
+      if (assetType === "DIGITAL" && (body.mintAddress || "").trim().length > 0) {
         try {
           mintAddress = new PublicKey((body.mintAddress || "").trim()).toBase58();
         } catch {
-          return fail(400, "Mint address tidak valid.");
+          return fail(
+            400,
+            "Invalid Solana mint address. Leave this field empty to automatically mint a demo token."
+          );
         }
       }
     }
@@ -60,7 +63,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             error: "POTENTIAL_DUPLICATE",
-            message: `Aset ini sudah terdaftar sebagai agunan aktif pada Tiket #${existing.publicTicketId} (${existing.status}). Pengajuan diblokir untuk mencegah gadai ganda.`,
+            message: `This asset is already registered as active collateral on request #${existing.publicTicketId} (${existing.status}). Submission blocked to prevent double-pledging.`,
             duplicateTicketId: existing.publicTicketId,
           },
           { status: 409 }
@@ -79,8 +82,8 @@ export async function POST(req: Request) {
         422,
         "INSUFFICIENT_DATA",
         process.env.FIRECRAWL_API_KEY
-          ? "Bukti harga pasar tidak cukup (minimal 2 listing). Perjelas merek/model, lalu coba lagi."
-          : "FIRECRAWL_API_KEY belum diisi, jadi tidak ada bukti harga pasar untuk devnet."
+          ? "Insufficient market price evidence (at least 2 live listings required). Refine the brand or asset name and try again."
+          : "Market data service is not configured for Devnet appraisals."
       );
     }
 

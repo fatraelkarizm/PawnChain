@@ -37,7 +37,7 @@ export async function POST(
     if (ticket.mode === "devnet") {
       if (body.action !== "sync") {
         return NextResponse.json(
-          { error: "Tiket devnet hanya berubah lewat transaksi on-chain." },
+          { error: "Devnet collateral requests can only be updated via on-chain transactions." },
           { status: 409 }
         );
       }
@@ -46,7 +46,7 @@ export async function POST(
 
     const actor = (body.actorWallet || "").trim();
     if (!actor) {
-      return NextResponse.json({ error: "Wallet address wajib diisi." }, { status: 400 });
+      return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
     }
 
     const now = new Date();
@@ -54,15 +54,15 @@ export async function POST(
 
     if (body.action === "custody_attest") {
       if (ticket.asset.assetType !== "PHYSICAL") {
-        return NextResponse.json({ error: "Hanya aset fisik yang memerlukan verifikasi custodian." }, { status: 400 });
+        return NextResponse.json({ error: "Only physical assets require custody verification." }, { status: 400 });
       }
       if (ticket.status !== "PENDING_VERIFICATION") {
-        return NextResponse.json({ error: "Tiket tidak berada pada status menunggu verifikasi." }, { status: 409 });
+        return NextResponse.json({ error: "This collateral request is not awaiting verification." }, { status: 409 });
       }
       // Separation of authority: only the custodian may attest, never the borrower.
       if (actor !== SANDBOX_WALLETS.custodian || actor === ticket.borrowerWallet) {
         return NextResponse.json(
-          { error: "Hanya Custodian terdaftar yang dapat memverifikasi barang." },
+          { error: "Custodian access is required to verify this asset." },
           { status: 403 }
         );
       }
@@ -82,13 +82,13 @@ export async function POST(
 
     if (body.action === "fund") {
       if (ticket.status !== "OPEN") {
-        return NextResponse.json({ error: "Tiket tidak berstatus OPEN (sudah didanai atau belum terverifikasi)." }, { status: 409 });
+        return NextResponse.json({ error: "This request is not open for funding." }, { status: 409 });
       }
       if (actor === ticket.borrowerWallet) {
-        return NextResponse.json({ error: "Borrower tidak boleh mendanai tiket miliknya sendiri." }, { status: 403 });
+        return NextResponse.json({ error: "Borrowers cannot fund their own collateral requests." }, { status: 403 });
       }
       if (actor === ticket.custodianWallet) {
-        return NextResponse.json({ error: "Custodian tidak boleh mendanai barang yang ia simpan." }, { status: 403 });
+        return NextResponse.json({ error: "Custodians cannot fund collateral held in their custody." }, { status: 403 });
       }
 
       const due = new Date(now.getTime() + ticket.tenorDays * 86_400_000);
@@ -103,10 +103,10 @@ export async function POST(
 
     if (body.action === "repay") {
       if (ticket.status !== "ACTIVE") {
-        return NextResponse.json({ error: "Tiket tidak dalam status ACTIVE." }, { status: 409 });
+        return NextResponse.json({ error: "This loan is not currently active." }, { status: 409 });
       }
       if (actor !== ticket.borrowerWallet) {
-        return NextResponse.json({ error: "Hanya Borrower pemilik tiket yang dapat melunasi." }, { status: 403 });
+        return NextResponse.json({ error: "Only the borrower can repay this loan." }, { status: 403 });
       }
       ticket.repayTxSignature = `SandboxTx_Repay_${ticket.publicTicketId}`;
       ticket.asset.custodyStatus = "RELEASED";
@@ -118,13 +118,13 @@ export async function POST(
 
     if (body.action === "claim_default") {
       if (ticket.status !== "ACTIVE") {
-        return NextResponse.json({ error: "Tiket tidak dalam status ACTIVE." }, { status: 409 });
+        return NextResponse.json({ error: "This loan is not currently active." }, { status: 409 });
       }
       if (actor !== ticket.lenderWallet) {
-        return NextResponse.json({ error: "Hanya Lender tiket ini yang berhak klaim default." }, { status: 403 });
+        return NextResponse.json({ error: "Only the funding lender can claim overdue collateral." }, { status: 403 });
       }
       if (ticket.dueAt && now.getTime() <= new Date(ticket.dueAt).getTime()) {
-        return NextResponse.json({ error: "Belum melewati tanggal jatuh tempo." }, { status: 409 });
+        return NextResponse.json({ error: "This loan has not reached its repayment deadline." }, { status: 409 });
       }
       ticket.status = "DEFAULT_CLAIMED";
       ticket.updatedAt = nowIso;
@@ -134,10 +134,10 @@ export async function POST(
 
     if (body.action === "cancel") {
       if (ticket.status !== "OPEN" && ticket.status !== "PENDING_VERIFICATION") {
-        return NextResponse.json({ error: "Tiket yang sudah didanai tidak dapat dibatalkan." }, { status: 409 });
+        return NextResponse.json({ error: "Funded loans cannot be cancelled." }, { status: 409 });
       }
       if (actor !== ticket.borrowerWallet) {
-        return NextResponse.json({ error: "Hanya Borrower yang dapat membatalkan tiket." }, { status: 403 });
+        return NextResponse.json({ error: "Only the borrower can cancel this request." }, { status: 403 });
       }
       ticket.status = "CANCELLED";
       ticket.asset.custodyStatus = "RELEASED";

@@ -14,7 +14,7 @@ import type { PawnTicket, PreparedPledge } from "@/types/pawn";
 export type TicketAction = "custody_attest" | "fund" | "repay" | "cancel" | "claim_default";
 
 function connectedKey(wallet: WalletContextState) {
-  if (!wallet.publicKey) throw new Error("Hubungkan wallet Devnet terlebih dahulu.");
+  if (!wallet.publicKey) throw new Error("Connect a Solana Devnet wallet first.");
   return wallet.publicKey;
 }
 
@@ -35,7 +35,7 @@ async function sendInstructions(
       logs.find((l) => l.includes("Error Message:"))?.split("Error Message:")[1] ??
       logs.find((l) => l.includes("already in use") || l.includes("insufficient lamports")) ??
       JSON.stringify(simulation.value.err);
-    throw new Error(`Transaksi ditolak: ${reason.trim()}`);
+    throw new Error(`Transaction rejected: ${reason.trim()}`);
   }
 
   const signature = await wallet
@@ -44,11 +44,11 @@ async function sendInstructions(
       // Wallet adapters can reject with an empty message, e.g. on an unsupported network.
       throw new Error(
         (err instanceof Error && err.message) ||
-          "Wallet tidak mengirim transaksi. Pastikan wallet memakai jaringan Devnet, lalu coba lagi."
+          "Wallet did not send the transaction. Make sure your wallet is set to Solana Devnet and try again."
       );
     });
   const result = await connection.confirmTransaction({ signature, ...latest }, "confirmed");
-  if (result.value.err) throw new Error("Transaksi gagal di devnet.");
+  if (result.value.err) throw new Error("Transaction failed on Solana Devnet.");
   return signature;
 }
 
@@ -98,7 +98,7 @@ export async function createDevnetPledge(
     appraisal.comparableReferences.length > 0 &&
     form.principalSol > appraisal.suggestedMaxLoanSol
   ) {
-    throw new Error(`Pinjaman melebihi batas aman (${appraisal.suggestedMaxLoanSol} SOL).`);
+    throw new Error(`Requested loan exceeds the maximum recommended limit (${appraisal.suggestedMaxLoanSol} SOL).`);
   }
 
   const mint = newMint?.publicKey ?? new PublicKey(mintAddress);
@@ -139,7 +139,7 @@ export async function createDevnetPledge(
     } catch (err) {
       if (attempt >= 4) {
         throw new Error(
-          `Tiket sudah dibuat on-chain (${ticketPubkey}) tetapi gagal didaftarkan: ${
+          `Collateral request was created on-chain (${ticketPubkey}) but failed to sync: ${
             err instanceof Error ? err.message : "unknown error"
           }`
         );
@@ -161,29 +161,29 @@ export async function runDevnetAction(
   action: TicketAction
 ): Promise<{ ticket: PawnTicket; signature: string }> {
   const actor = connectedKey(wallet);
-  if (!ticket.chainTicketPubkey) throw new Error("Tiket ini tidak punya akun on-chain.");
+  if (!ticket.chainTicketPubkey) throw new Error("This collateral request does not have an on-chain account.");
   const onChain = await program.fetchTicket(connection, ticket.chainTicketPubkey);
-  if (!onChain) throw new Error("Akun tiket tidak ditemukan di devnet.");
+  if (!onChain) throw new Error("On-chain collateral account was not found on Devnet.");
 
   const needs = (address: string | null, role: string) => {
-    if (address !== actor.toBase58()) throw new Error(`Aksi ini hanya untuk wallet ${role}.`);
+    if (address !== actor.toBase58()) throw new Error(`This action is restricted to the ${role} wallet.`);
   };
 
   let instruction: TransactionInstruction;
   if (action === "fund") {
     instruction = program.fundLoanInstruction(actor, onChain);
   } else if (action === "repay") {
-    needs(onChain.borrower, "peminjam");
+    needs(onChain.borrower, "borrower");
     instruction = program.repayInstruction(onChain);
   } else if (action === "cancel") {
-    needs(onChain.borrower, "peminjam");
+    needs(onChain.borrower, "borrower");
     instruction = program.cancelInstruction(onChain);
   } else if (action === "claim_default") {
-    needs(onChain.lender, "pendana");
+    needs(onChain.lender, "lender");
     instruction = program.claimDefaultInstruction(actor, onChain);
   } else {
     if (!(await connection.getAccountInfo(program.custodianPda(actor)))) {
-      throw new Error("Wallet ini belum terdaftar sebagai custodian on-chain.");
+      throw new Error("This wallet is not registered as an on-chain custodian.");
     }
     instruction = program.attestCustodyInstruction(
       actor,

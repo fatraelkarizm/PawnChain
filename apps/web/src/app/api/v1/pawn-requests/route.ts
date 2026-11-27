@@ -21,34 +21,34 @@ async function registerDevnetTicket(body: {
   chainTxSignature?: string;
 }) {
   const prepared = verifyToken<PreparedPledge>(body.appraisalToken || "");
-  if (!prepared) return fail(400, "Token taksiran tidak valid atau kedaluwarsa.");
+  if (!prepared) return fail(400, "Valuation token is invalid or expired.");
 
   let address: string;
   try {
     address = new PublicKey(body.ticketPubkey || "").toBase58();
   } catch {
-    return fail(400, "Alamat tiket tidak valid.");
+    return fail(400, "Invalid collateral ticket address.");
   }
 
   const registered = (await listTickets()).find((t) => t.chainTicketPubkey === address);
   if (registered) return NextResponse.json({ ticket: registered });
 
   const chain = await fetchTicket(getSolanaConnection(), address);
-  if (!chain) return fail(404, "Akun tiket belum ditemukan di devnet.");
-  if (chain.status !== "OPEN") return fail(409, "Tiket on-chain sudah tidak terbuka.");
+  if (!chain) return fail(404, "On-chain collateral account was not found on Devnet.");
+  if (chain.status !== "OPEN") return fail(409, "On-chain collateral request is no longer open.");
   if (
     chain.metadataUri !== prepared.metadataUri ||
     chain.fingerprintHex !== prepared.serialHash ||
     chain.assetType !== prepared.assetType ||
     (prepared.mintAddress && chain.collateralMint !== prepared.mintAddress)
   ) {
-    return fail(400, "Data on-chain tidak cocok dengan data yang ditaksir.");
+    return fail(400, "On-chain collateral data does not match the appraised asset.");
   }
 
   const { appraisal } = prepared;
   const isAppraised = appraisal.comparableReferences.length > 0;
   if (isAppraised && chain.loanLamports > solToLamports(appraisal.suggestedMaxLoanSol)) {
-    return fail(400, `Pinjaman melebihi batas aman (${appraisal.suggestedMaxLoanSol} SOL).`);
+    return fail(400, `Requested loan exceeds the maximum recommended limit (${appraisal.suggestedMaxLoanSol} SOL).`);
   }
 
   const publicTicketId = await nextPublicTicketId();
@@ -129,13 +129,13 @@ export async function POST(req: Request) {
       body.condition === "Mint" || body.condition === "Fair" ? body.condition : "Good";
 
     if (!borrowerWallet || !brand || !model || !Number.isFinite(principalSol) || principalSol <= 0) {
-      return fail(400, "Parameter pengajuan gadai tidak valid.");
+      return fail(400, "Invalid collateral request parameters.");
     }
     if (interestBps < 0 || interestBps > 5000) {
-      return fail(400, "Bunga maksimal 50% (5000 bps).");
+      return fail(400, "Interest rate cannot exceed 50% (5000 bps).");
     }
     if (tenorDays < 1 || tenorDays > 90) {
-      return fail(400, "Tenor pinjaman harus antara 1 sampai 90 hari.");
+      return fail(400, "Loan duration must be between 1 and 90 days.");
     }
 
     const serialRaw = (body.serialNumber || "").trim();
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
     if (serialHash) {
       const dup = await checkDuplicateSerialHash(serialHash, "sandbox");
       if (dup) {
-        return fail(409, `Serial/IMEI sudah aktif di Tiket #${dup.publicTicketId}. Gadai ganda ditolak.`);
+        return fail(409, `Serial/IMEI is already active on request #${dup.publicTicketId}. Double-pledging rejected.`);
       }
     }
 
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
     if (principalSol > appraisal.suggestedMaxLoanSol) {
       return fail(
         400,
-        `Pinjaman ${principalSol} SOL melebihi batas aman AI (${appraisal.suggestedMaxLoanSol} SOL pada LTV ${Math.round(appraisal.suggestedLtv * 100)}%).`
+        `Requested loan (${principalSol} SOL) exceeds the maximum recommended limit (${appraisal.suggestedMaxLoanSol} SOL at ${Math.round(appraisal.suggestedLtv * 100)}% LTV).`
       );
     }
 
