@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --bg-canvas: #f7f8fa;
+  --bg-surface: #ffffff;
+  --bg-muted: #eef1f5;
+  --ink-primary: #0f172a;
+  --ink-muted: #526071;
+  --border-ledger: #dce1e8;
+  --accent-vault: #0b5d4b;
+  --accent-vault-hover: #084739;
+  --accent-amber: #b45309;
+}
+
+@theme inline {
+  --color-background: var(--bg-canvas);
+  --color-foreground: var(--ink-primary);
+  --font-sans: var(--font-jakarta);
+  --font-mono: var(--font-plex-mono);
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--ink-primary);
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Override default Solana Wallet Adapter button to match ledger aesthetic */
+.wallet-adapter-button {
+  background-color: var(--ink-primary) !important;
+  color: #ffffff !important;
+  font-family: var(--font-jakarta), system-ui, sans-serif !important;
+  font-size: 0.875rem !important;
+  font-weight: 600 !important;
+  height: 2.375rem !important;
+  padding: 0 1rem !important;
+  border-radius: 0.375rem !important;
+}
+
+.wallet-adapter-button:hover {
+  background-color: #1e293b !important;
+}

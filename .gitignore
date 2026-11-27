@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Anchor / Solana
+target/
+.anchor/
+test-ledger/
+**/*.rs.bk
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+.pawnchain-local-store.json
