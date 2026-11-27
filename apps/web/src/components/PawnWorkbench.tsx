@@ -6,12 +6,19 @@ import dynamic from "next/dynamic";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   Check,
+  CheckCircle2,
+  Coins,
   Copy,
   ExternalLink,
   FlaskConical,
+  HelpCircle,
+  Lock,
+  Mic,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Volume2,
+  X,
 } from "lucide-react";
 import type {
   AppraisalResult,
@@ -150,6 +157,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
   const [submitting, setSubmitting] = useState(false);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const refreshTickets = useCallback(async () => {
@@ -285,7 +293,14 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     } catch (err) {
       setFeedback({
         type: "err",
-        text: err instanceof Error ? err.message : "Transaction cancelled or failed.",
+        text:
+          err instanceof Error && err.message === "Failed to fetch"
+            ? lang === "en"
+              ? "Network or Solana Devnet RPC request failed. Check your connection or switch to Sandbox On."
+              : "Koneksi server atau Solana Devnet RPC gagal. Cek koneksi atau gunakan mode Sandbox Aktif."
+            : err instanceof Error
+              ? err.message
+              : "Transaction cancelled or failed.",
       });
     } finally {
       setSubmitting(false);
@@ -353,7 +368,14 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     } catch (err) {
       setFeedback({
         type: "err",
-        text: err instanceof Error ? err.message : "Wallet transaction failed.",
+        text:
+          err instanceof Error && err.message === "Failed to fetch"
+            ? lang === "en"
+              ? "Network or Solana Devnet RPC request failed. Check your connection or switch to Sandbox On."
+              : "Koneksi server atau Solana Devnet RPC gagal. Cek koneksi atau gunakan mode Sandbox Aktif."
+            : err instanceof Error
+              ? err.message
+              : "Wallet transaction failed.",
       });
     } finally {
       setActionBusyId(null);
@@ -412,8 +434,11 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
               <span className="text-base font-bold tracking-tight text-[var(--ink-primary)]">
                 PawnChain
               </span>
-              <span className="ml-2 rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--ink-muted)]">
-                {t.subtitle}
+              <span className="ml-2 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-800">
+                ● {t.subtitle}
+              </span>
+              <span className="ml-1.5 hidden rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink-muted)] sm:inline-block">
+                Firecrawl · ElevenLabs · Anchor
               </span>
             </div>
           </div>
@@ -467,6 +492,16 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
             </div>
 
             <WalletMultiButton />
+
+            <button
+              type="button"
+              onClick={() => setShowGuide(true)}
+              aria-label={lang === "en" ? "Open guide" : "Buka panduan"}
+              title={lang === "en" ? "How it works & Guide" : "Panduan Penggunaan"}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] text-[var(--ink-primary)] transition-colors hover:bg-[var(--bg-muted)]"
+            >
+              <HelpCircle className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </header>
@@ -482,23 +517,66 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
             <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
               {t.heroDesc}
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
+                <Search className="h-3 w-3" />
+                Live Firecrawl Pricing
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-800">
+                <Mic className="h-3 w-3" />
+                ElevenLabs Voice Contract
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
+                <ShieldCheck className="h-3 w-3" />
+                Anti-Fraud LTV 60% &amp; IMEI Hash
+              </span>
+            </div>
           </div>
           <div className="flex flex-col items-start md:items-end">
             <span className="text-xs text-[var(--ink-muted)]">{t.activeAccount}</span>
-            <span className="font-mono text-xs font-medium text-[var(--ink-primary)]">
+            <span
+              className={`mt-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
+                isWalletMode
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                  : sandboxRole === "borrower"
+                    ? "border-sky-200 bg-sky-50 text-sky-900"
+                    : sandboxRole === "lender"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isWalletMode
+                    ? "bg-emerald-600"
+                    : sandboxRole === "borrower"
+                      ? "bg-sky-600"
+                      : sandboxRole === "lender"
+                        ? "bg-emerald-600"
+                        : "bg-amber-600"
+                }`}
+              />
               {shortAddr(activeWallet)} ({isWalletMode ? "Devnet Wallet" : sandboxRole})
             </span>
           </div>
         </div>
 
         {/* 4-Step Mechanism Strip */}
-        <div className="mb-6 grid grid-cols-2 gap-2 rounded-md border border-[var(--border-ledger)] bg-white p-3 sm:grid-cols-4">
-          {[t.step1, t.step2, t.step3, t.step4].map((stepText) => (
+        <div className="mb-6 grid grid-cols-2 gap-2.5 rounded-lg border border-[var(--border-ledger)] bg-white p-3 shadow-xs sm:grid-cols-4">
+          {[
+            { Icon: Search, text: t.step1 },
+            { Icon: Lock, text: t.step2 },
+            { Icon: Coins, text: t.step3 },
+            { Icon: CheckCircle2, text: t.step4 },
+          ].map(({ Icon, text }) => (
             <div
-              key={stepText}
-              className="rounded bg-[var(--bg-canvas)] px-3 py-2 text-xs font-semibold text-[var(--ink-primary)]"
+              key={text}
+              className="step-strip-item flex items-center gap-2.5 rounded-md border border-transparent bg-[var(--bg-canvas)] px-3 py-2.5 text-xs font-semibold text-[var(--ink-primary)]"
             >
-              {stepText}
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[var(--accent-vault-light)] text-[var(--accent-vault)]">
+                <Icon className="h-3.5 w-3.5" />
+              </span>
+              <span className="leading-snug">{text}</span>
             </div>
           ))}
         </div>
@@ -551,6 +629,97 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   }`}
                 >
                   OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showGuide && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setShowGuide(false)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-[2px]"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg rounded-lg border border-[var(--border-ledger)] bg-white p-6 shadow-xl"
+            >
+              <div className="flex items-center justify-between border-b border-[var(--border-ledger)] pb-3">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="h-5 w-5 text-[var(--accent-vault)]" />
+                  <h3 className="text-base font-bold text-[var(--ink-primary)]">
+                    {lang === "en" ? "PawnChain Quick Guide" : "Panduan Cepat PawnChain"}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(false)}
+                  aria-label="Close"
+                  className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--bg-canvas)] hover:text-[var(--ink-primary)]"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3 text-xs leading-relaxed text-[var(--ink-muted)]">
+                <div>
+                  <p className="font-semibold text-[var(--ink-primary)]">
+                    {lang === "en" ? "1. Sandbox Mode vs Wallet Mode" : "1. Mode Sandbox vs Mode Wallet"}
+                  </p>
+                  <p>
+                    {lang === "en"
+                      ? "Keep 'Sandbox On' to test all roles instantly without a browser wallet. Switch to 'Wallet Mode' + Phantom (Devnet) to sign real Solana transactions."
+                      : "Biarkan 'Sandbox Aktif' untuk mencoba semua peran tanpa ekstensi wallet. Pindah ke 'Mode Wallet' + Phantom (Devnet) untuk transaksi Solana asli."}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-[var(--ink-primary)]">
+                    {lang === "en" ? "2. Three Roles" : "2. Tiga Peran Utama"}
+                  </p>
+                  <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                    <li>
+                      <strong className="text-[var(--ink-primary)]">Borrower:</strong>{" "}
+                      {lang === "en"
+                        ? "Runs AI Appraisal, creates pawn ticket, and repays loan to reclaim collateral."
+                        : "Hitung taksiran AI, ajukan tiket gadai, dan lunasi pinjaman."}
+                    </li>
+                    <li>
+                      <strong className="text-[var(--ink-primary)]">Custodian Hub:</strong>{" "}
+                      {lang === "en"
+                        ? "Verifies physical RWA (IMEI/seal) before the ticket can be funded."
+                        : "Verifikasi fisik barang (IMEI/segel) sebelum tiket bisa didanai."}
+                    </li>
+                    <li>
+                      <strong className="text-[var(--ink-primary)]">Lender:</strong>{" "}
+                      {lang === "en"
+                        ? "Funds OPEN tickets in SOL and earns interest upon repayment."
+                        : "Mendanai tiket OPEN dengan SOL dan mendapat bunga saat dilunasi."}
+                    </li>
+                  </ul>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-[var(--ink-primary)]">
+                    {lang === "en" ? "3. Physical RWA vs Digital NFT" : "3. Barang Fisik (RWA) vs NFT Digital"}
+                  </p>
+                  <p>
+                    {lang === "en"
+                      ? "Physical RWA requires Custodian check-in first (PENDING_VERIFICATION → OPEN). Digital NFT locks directly in on-chain PDA escrow (immediately OPEN)."
+                      : "Barang Fisik wajib dicek Custodian dulu (PENDING_VERIFICATION → OPEN). NFT Digital langsung terkunci di escrow on-chain (langsung OPEN)."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(false)}
+                  className="rounded-md bg-[var(--accent-vault)] px-4 py-2 text-xs font-semibold text-white hover:bg-[var(--accent-vault-hover)]"
+                >
+                  {lang === "en" ? "Got it" : "Mengerti"}
                 </button>
               </div>
             </div>
@@ -854,16 +1023,28 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   )}
                 </div>
 
+                {sandboxEnabled && sandboxRole !== "borrower" && (
+                  <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    {lang === "en"
+                      ? "Switch role to Borrower (Budi) to submit a new pawn ticket."
+                      : "Ganti peran ke Peminjam (Budi) untuk mengajukan tiket gadai baru."}
+                  </p>
+                )}
+
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="w-full rounded-md bg-[var(--accent-vault)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
+                  disabled={submitting || (sandboxEnabled && sandboxRole !== "borrower")}
+                  className="w-full rounded-md bg-[var(--accent-vault)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-vault-hover)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting
                     ? t.btnCreating
-                    : assetType === "PHYSICAL"
-                      ? t.btnCreatePhysical
-                      : t.btnCreateDigital}
+                    : sandboxEnabled && sandboxRole !== "borrower"
+                      ? lang === "en"
+                        ? "Borrower Role Required to Submit"
+                        : "Gunakan Peran Peminjam untuk Ajukan"
+                      : assetType === "PHYSICAL"
+                        ? t.btnCreatePhysical
+                        : t.btnCreateDigital}
                 </button>
               </form>
             </div>
@@ -926,7 +1107,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                       : null;
 
                     return (
-                      <article key={ticket.id} className="p-5">
+                      <article key={ticket.id} className="ticket-card p-5">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -1048,38 +1229,76 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                         </div>
 
                         <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                          {ticket.status === "PENDING_VERIFICATION" && (
-                            <button
-                              type="button"
-                              disabled={actionBusyId === ticket.id}
-                              onClick={() => handleTicketAction(ticket, "custody_attest")}
-                              className="rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
-                            >
-                              {t.btnAttest}
-                            </button>
-                          )}
+                          {ticket.status === "PENDING_VERIFICATION" &&
+                            (sandboxEnabled
+                              ? sandboxRole === "custodian"
+                              : activeWallet !== ticket.borrowerWallet) && (
+                              <button
+                                type="button"
+                                disabled={actionBusyId === ticket.id}
+                                onClick={() => handleTicketAction(ticket, "custody_attest")}
+                                className="rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+                              >
+                                {t.btnAttest}
+                              </button>
+                            )}
 
-                          {ticket.status === "OPEN" && (
-                            <button
-                              type="button"
-                              disabled={actionBusyId === ticket.id}
-                              onClick={() => handleTicketAction(ticket, "fund")}
-                              className="rounded bg-[var(--accent-vault)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
-                            >
-                              {t.btnFund} ({principalSolVal.toFixed(2)} SOL)
-                            </button>
-                          )}
+                          {ticket.status === "PENDING_VERIFICATION" &&
+                            !(sandboxEnabled
+                              ? sandboxRole === "custodian"
+                              : activeWallet !== ticket.borrowerWallet) && (
+                              <span className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-800">
+                                {lang === "en"
+                                  ? "Custodian Hub role required to verify"
+                                  : "Butuh peran Custodian Hub untuk verifikasi"}
+                              </span>
+                            )}
 
-                          {ticket.status === "ACTIVE" && (
-                            <button
-                              type="button"
-                              disabled={actionBusyId === ticket.id}
-                              onClick={() => handleTicketAction(ticket, "repay")}
-                              className="rounded bg-[var(--ink-primary)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-                            >
-                              {t.btnRepay} ({totalDueSol} SOL)
-                            </button>
-                          )}
+                          {ticket.status === "OPEN" &&
+                            (sandboxEnabled
+                              ? sandboxRole === "lender"
+                              : activeWallet !== ticket.borrowerWallet) && (
+                              <button
+                                type="button"
+                                disabled={actionBusyId === ticket.id}
+                                onClick={() => handleTicketAction(ticket, "fund")}
+                                className="rounded bg-[var(--accent-vault)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
+                              >
+                                {t.btnFund} ({principalSolVal.toFixed(2)} SOL)
+                              </button>
+                            )}
+
+                          {ticket.status === "OPEN" &&
+                            !(sandboxEnabled
+                              ? sandboxRole === "lender"
+                              : activeWallet !== ticket.borrowerWallet) && (
+                              <span className="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800">
+                                {lang === "en"
+                                  ? "Awaiting Lender funding"
+                                  : "Menunggu pendanaan Pendana (Lender)"}
+                              </span>
+                            )}
+
+                          {ticket.status === "ACTIVE" &&
+                            activeWallet === ticket.borrowerWallet && (
+                              <button
+                                type="button"
+                                disabled={actionBusyId === ticket.id}
+                                onClick={() => handleTicketAction(ticket, "repay")}
+                                className="rounded bg-[var(--ink-primary)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                              >
+                                {t.btnRepay} ({totalDueSol} SOL)
+                              </button>
+                            )}
+
+                          {ticket.status === "ACTIVE" &&
+                            activeWallet !== ticket.borrowerWallet && (
+                              <span className="rounded border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-800">
+                                {lang === "en"
+                                  ? "Active — awaiting Borrower repayment"
+                                  : "Aktif — menunggu pelunasan Peminjam"}
+                              </span>
+                            )}
 
                           {(ticket.status === "OPEN" || ticket.status === "PENDING_VERIFICATION") &&
                             activeWallet === ticket.borrowerWallet && (
@@ -1108,9 +1327,19 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 text-xs text-[var(--ink-muted)] sm:px-6">
           <span>PawnChain — Dev3pack Global Hackathon (Solana Devnet)</span>
           <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
-            <span>Anchor Escrow</span>
+            <a
+              href="https://explorer.solana.com/address/44tTkRHFef9s1TdG9KcH5jKSLQVoDrLUevA6gKr6HDcr?cluster=devnet"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[var(--accent-vault)] hover:underline"
+            >
+              Anchor Program (Devnet) ↗
+            </a>
+            <span>·</span>
             <span>Firecrawl Appraisal</span>
+            <span>·</span>
             <span>ElevenLabs Voice</span>
+            <span>·</span>
             <span>Supabase Ledger</span>
           </div>
         </div>

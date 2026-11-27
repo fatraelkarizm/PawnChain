@@ -1,15 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --bg-canvas: #f7f8fa;
+  --bg-canvas: #f4f6f9;
   --bg-surface: #ffffff;
-  --bg-muted: #eef1f5;
+  --bg-muted: #eaecf2;
   --ink-primary: #0f172a;
   --ink-muted: #526071;
   --border-ledger: #dce1e8;
   --accent-vault: #0b5d4b;
   --accent-vault-hover: #084739;
+  --accent-vault-light: #e8f5f2;
   --accent-amber: #b45309;
+  --accent-amber-light: #fff8f0;
+  --accent-blue: #1d4ed8;
+  --accent-rose: #be123c;
 }
 
 @theme inline {
@@ -23,10 +27,25 @@ body {
   background-color: var(--bg-canvas);
   color: var(--ink-primary);
   font-family: var(--font-jakarta), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* Ticket card hover lift */
+.ticket-card {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.ticket-card:hover {
+  box-shadow: 0 4px 16px rgba(11, 93, 75, 0.09);
+  transform: translateY(-1px);
+}
+
+/* Sponsor pill glow on hover */
+.sponsor-pill:hover {
+  box-shadow: 0 0 0 2px var(--accent-vault);
 }
 
 /* Override default Solana Wallet Adapter button to match ledger aesthetic */
@@ -34,13 +53,30 @@ body {
   background-color: var(--ink-primary) !important;
   color: #ffffff !important;
   font-family: var(--font-jakarta), system-ui, sans-serif !important;
-  font-size: 0.875rem !important;
+  font-size: 0.8125rem !important;
   font-weight: 600 !important;
-  height: 2.375rem !important;
-  padding: 0 1rem !important;
+  height: 2.25rem !important;
+  padding: 0 0.875rem !important;
   border-radius: 0.375rem !important;
+  letter-spacing: 0.01em !important;
 }
 
 .wallet-adapter-button:hover {
   background-color: #1e293b !important;
+}
+
+/* Smooth focus rings */
+input:focus,
+select:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-vault-light), 0 0 0 1px var(--accent-vault);
+  border-color: var(--accent-vault) !important;
+}
+
+/* Step strip icons */
+.step-strip-item {
+  transition: background-color 0.15s ease;
+}
+.step-strip-item:hover {
+  background-color: var(--accent-vault-light);
 }

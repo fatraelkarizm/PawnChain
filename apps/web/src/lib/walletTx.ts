@@ -25,9 +25,14 @@ export async function sendDevnetMemoTx(
   if (!wallet.publicKey || !wallet.sendTransaction) {
     throw new Error("Wallet belum terhubung.");
   }
-  const tx = new Transaction().add(createMemoInstruction(memo, wallet.publicKey));
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const tx = new Transaction({
+    feePayer: wallet.publicKey,
+    blockhash,
+    lastValidBlockHeight,
+  }).add(createMemoInstruction(memo, wallet.publicKey));
   const sig = await wallet.sendTransaction(tx, connection);
-  await connection.confirmTransaction(sig, "confirmed");
+  await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
   return sig;
 }
 
@@ -41,8 +46,13 @@ export async function sendDevnetTransferTx(
   if (!wallet.publicKey || !wallet.sendTransaction) {
     throw new Error("Wallet belum terhubung.");
   }
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   const toPubkey = new PublicKey(recipientAddress);
-  const tx = new Transaction()
+  const tx = new Transaction({
+    feePayer: wallet.publicKey,
+    blockhash,
+    lastValidBlockHeight,
+  })
     .add(
       SystemProgram.transfer({
         fromPubkey: wallet.publicKey,
@@ -53,6 +63,6 @@ export async function sendDevnetTransferTx(
     .add(createMemoInstruction(memo, wallet.publicKey));
 
   const sig = await wallet.sendTransaction(tx, connection);
-  await connection.confirmTransaction(sig, "confirmed");
+  await connection.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
   return sig;
 }

@@ -91,38 +91,53 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        {ticket.status === "PENDING_VERIFICATION" && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction("custody_attest")}
-            className="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
-          >
-            Verify Physical Asset (Custodian)
-          </button>
+      <div className="flex flex-wrap items-center gap-2">
+        {ticket.status === "PENDING_VERIFICATION" &&
+          (!connected || publicKey?.toBase58() !== ticket.borrowerWallet) && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => runAction("custody_attest")}
+              className="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+            >
+              Verify Physical Asset (Custodian)
+            </button>
+          )}
+
+        {ticket.status === "OPEN" &&
+          (!connected || publicKey?.toBase58() !== ticket.borrowerWallet) && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => runAction("fund")}
+              className="rounded bg-[var(--accent-vault)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
+            >
+              Fund Now ({principalSol.toFixed(2)} SOL)
+            </button>
+          )}
+
+        {ticket.status === "ACTIVE" &&
+          (!connected || publicKey?.toBase58() === ticket.borrowerWallet) && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => runAction("repay")}
+              className="rounded bg-[var(--ink-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            >
+              Repay & Reclaim ({totalDue} SOL)
+            </button>
+          )}
+
+        {connected && publicKey?.toBase58() === ticket.borrowerWallet && ticket.status !== "ACTIVE" && (
+          <span className="text-xs text-[var(--ink-muted)]">
+            Connected as Borrower — awaiting {ticket.status === "PENDING_VERIFICATION" ? "Custodian verification" : "Lender funding"}.
+          </span>
         )}
 
-        {ticket.status === "OPEN" && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction("fund")}
-            className="rounded bg-[var(--accent-vault)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
-          >
-            Fund Now ({principalSol.toFixed(2)} SOL)
-          </button>
-        )}
-
-        {ticket.status === "ACTIVE" && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => runAction("repay")}
-            className="rounded bg-[var(--ink-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            Repay & Reclaim ({totalDue} SOL)
-          </button>
+        {connected && publicKey?.toBase58() !== ticket.borrowerWallet && ticket.status === "ACTIVE" && (
+          <span className="text-xs text-[var(--ink-muted)]">
+            Active loan — awaiting Borrower repayment.
+          </span>
         )}
       </div>
     </div>
