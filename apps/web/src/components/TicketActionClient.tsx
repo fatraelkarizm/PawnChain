@@ -30,6 +30,10 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
   const principalSol = lamportsToSol(ticket.principalLamports);
   const totalDue = (principalSol * (1 + ticket.interestBps / 10_000)).toFixed(3);
   const disabled = busy || (isDevnet && !wallet.publicKey);
+  // Sandbox plays every role from this page; on devnet the connected wallet decides.
+  const address = isDevnet ? wallet.publicKey?.toBase58() : undefined;
+  const isBorrower = address === ticket.borrowerWallet;
+  const isOtherWallet = !!address && !isBorrower;
 
   async function runAction(action: Action) {
     setBusy(true);
@@ -91,38 +95,51 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
 
       {isDevnet && <WalletMultiButton />}
 
-      <div className="flex flex-wrap gap-2">
-        {ticket.status === "PENDING_VERIFICATION" && (
+      <div className="flex flex-wrap items-center gap-2">
+        {ticket.status === "PENDING_VERIFICATION" && !isBorrower && (
           <button
             type="button"
             disabled={disabled}
             onClick={() => runAction("custody_attest")}
-            className="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
+            className="rounded bg-amber-700 hover:bg-amber-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             Verify Physical Asset (Custodian)
           </button>
         )}
 
-        {ticket.status === "OPEN" && (
+        {ticket.status === "OPEN" && !isBorrower && (
           <button
             type="button"
             disabled={disabled}
             onClick={() => runAction("fund")}
-            className="rounded bg-[var(--accent-vault)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
+            className="rounded bg-[var(--accent-vault)] hover:bg-[var(--accent-vault-hover)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             Fund Now ({principalSol.toFixed(2)} SOL)
           </button>
         )}
 
-        {ticket.status === "ACTIVE" && (
+        {ticket.status === "ACTIVE" && !isOtherWallet && (
           <button
             type="button"
             disabled={disabled}
             onClick={() => runAction("repay")}
-            className="rounded bg-[var(--ink-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded bg-[var(--ink-primary)] hover:bg-slate-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
             Repay & Reclaim ({totalDue} SOL)
           </button>
+        )}
+
+        {isBorrower && (ticket.status === "PENDING_VERIFICATION" || ticket.status === "OPEN") && (
+          <span className="text-xs text-[var(--ink-muted)]">
+            Connected as Borrower — awaiting{" "}
+            {ticket.status === "OPEN" ? "Lender funding" : "Custodian verification"}.
+          </span>
+        )}
+
+        {isOtherWallet && ticket.status === "ACTIVE" && (
+          <span className="text-xs text-[var(--ink-muted)]">
+            Active loan — awaiting Borrower repayment.
+          </span>
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 # Status dan Langkah Berikutnya
 
-Diperbarui 27 November 2026. Perubahan di atas commit `381f38d`, **belum di-commit**.
+Diperbarui 27 November 2026. Ada di branch `feat/onchain-escrow`, sudah digabung dengan commit `f83c9bc` dari `main`.
 
 ## Hasil verifikasi
 
