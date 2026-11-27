@@ -13,7 +13,6 @@ import {
   FlaskConical,
   HelpCircle,
   Lock,
-  Mic,
   Search,
   ShieldAlert,
   ShieldCheck,
@@ -412,27 +411,57 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     <div className="min-h-screen flex flex-col">
       {/* Top Utility Bar */}
       <header className="sticky top-0 z-30 border-b border-[var(--border-ledger)] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded bg-[var(--accent-vault)] text-sm font-bold text-white">
-              P
+        <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          {/* Row 1 on mobile: Brand + Quick Actions */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--accent-vault)] text-sm font-bold text-white">
+                P
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-base font-bold tracking-tight text-[var(--ink-primary)]">
+                  PawnChain
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-800">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                  {t.subtitle}
+                </span>
+              </div>
             </div>
-            <div>
-              <span className="text-base font-bold tracking-tight text-[var(--ink-primary)]">
-                PawnChain
-              </span>
-              <span className="ml-2 rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-emerald-800">
-                ● {t.subtitle}
-              </span>
-              <span className="ml-1.5 hidden rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--ink-muted)] sm:inline-block">
-                Firecrawl · ElevenLabs · Anchor
-              </span>
+
+            {/* Mobile-only compact EN/ID + Guide */}
+            <div className="flex items-center gap-1.5 lg:hidden">
+              <div className="flex rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-0.5">
+                {(["en", "id"] as const).map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => setLang(code)}
+                    className={`rounded px-2 py-1 text-[11px] font-semibold uppercase transition-colors ${
+                      lang === code
+                        ? "bg-[var(--ink-primary)] text-white"
+                        : "text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
+                    }`}
+                  >
+                    {code}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGuide(true)}
+                aria-label={lang === "en" ? "Open guide" : "Buka panduan"}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] text-[var(--ink-primary)]"
+              >
+                <HelpCircle className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Language Switcher EN / ID */}
-            <div className="flex rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-0.5">
+          {/* Row 2 on mobile / Right side on desktop */}
+          <div className="flex flex-wrap items-center justify-between gap-2 lg:justify-end">
+            {/* Desktop EN/ID */}
+            <div className="hidden rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-0.5 lg:flex">
               {(["en", "id"] as const).map((code) => (
                 <button
                   key={code}
@@ -450,11 +479,11 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
             </div>
 
             {/* Sandbox Mode Toggle & Role Switcher */}
-            <div className="flex items-center gap-1.5 rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-1">
+            <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-1 sm:flex-initial">
               <button
                 type="button"
                 onClick={() => setSandboxEnabled((v) => !v)}
-                className={`inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
                   sandboxEnabled
                     ? "bg-[var(--accent-vault)] text-white"
                     : "text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
@@ -469,7 +498,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   aria-label="Select demo role"
                   value={sandboxRole}
                   onChange={(e) => setSandboxRole(e.target.value as SandboxRole)}
-                  className="rounded border-0 bg-transparent px-2 py-1 text-xs font-medium text-[var(--ink-primary)] focus:outline-none"
+                  className="min-w-0 flex-1 truncate rounded border-0 bg-transparent px-1.5 py-1 text-xs font-medium text-[var(--ink-primary)] focus:outline-none sm:flex-initial"
                 >
                   <option value="borrower">{t.roleBorrower}</option>
                   <option value="lender">{t.roleLender}</option>
@@ -478,14 +507,16 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
               )}
             </div>
 
-            <WalletMultiButton />
+            <div className="shrink-0">
+              <WalletMultiButton />
+            </div>
 
             <button
               type="button"
               onClick={() => setShowGuide(true)}
               aria-label={lang === "en" ? "Open guide" : "Buka panduan"}
               title={lang === "en" ? "How it works & Guide" : "Panduan Penggunaan"}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] text-[var(--ink-primary)] transition-colors hover:bg-[var(--bg-muted)]"
+              className="hidden h-9 w-9 items-center justify-center rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] text-[var(--ink-primary)] transition-colors hover:bg-[var(--bg-muted)] lg:inline-flex"
             >
               <HelpCircle className="h-4 w-4" />
             </button>
@@ -494,35 +525,21 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       </header>
 
       {/* Main Content */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6">
         {/* Compact Header Strip */}
-        <div className="mb-5 flex flex-col justify-between gap-4 pb-2 md:flex-row md:items-end">
+        <div className="mb-5 flex flex-col justify-between gap-3 pb-1 md:flex-row md:items-end">
           <div className="max-w-2xl">
-            <h1 className="text-2xl font-bold tracking-tight text-[var(--ink-primary)] sm:text-3xl">
+            <h1 className="text-xl font-bold tracking-tight text-[var(--ink-primary)] sm:text-3xl">
               {t.heroTitle}
             </h1>
             <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
               {t.heroDesc}
             </p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800">
-                <Search className="h-3 w-3" />
-                Live Firecrawl Pricing
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-800">
-                <Mic className="h-3 w-3" />
-                ElevenLabs Voice Contract
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800">
-                <ShieldCheck className="h-3 w-3" />
-                Anti-Fraud LTV 60% &amp; IMEI Hash
-              </span>
-            </div>
           </div>
-          <div className="flex flex-col items-start md:items-end">
+          <div className="flex items-center justify-between gap-2 md:flex-col md:items-end">
             <span className="text-xs text-[var(--ink-muted)]">{t.activeAccount}</span>
             <span
-              className={`mt-1 inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
+              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-xs font-semibold ${
                 !sandboxEnabled
                   ? "border-emerald-300 bg-emerald-50 text-emerald-900"
                   : sandboxRole === "borrower"
@@ -543,7 +560,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                         : "bg-amber-600"
                 }`}
               />
-              {shortAddr(activeWallet || null)} ({sandboxEnabled ? sandboxRole : "Devnet Wallet"})
+              {shortAddr(activeWallet || null)} ({sandboxEnabled ? sandboxRole : "Devnet"})
             </span>
           </div>
         </div>
@@ -792,7 +809,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
                       {t.labelBrand}
@@ -819,7 +836,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
                       {t.labelCondition}

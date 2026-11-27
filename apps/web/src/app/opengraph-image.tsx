@@ -65,11 +65,11 @@ export default function OpenGraphImage() {
               letterSpacing: "-0.02em",
             }}
           >
-            AI-Powered P2P Pawnshop &amp; RWA Escrow on Solana
+            Borrow SOL against real assets. Settled in one click.
           </div>
           <div style={{ fontSize: "24px", color: "#526071", lineHeight: 1.4 }}>
-            Live Firecrawl market appraisal, on-chain anti-duplicate CollateralLock, ElevenLabs
-            voice contract briefing, and atomic Anchor escrow.
+            Live market pricing, verified physical custody, and atomic Solana escrow—no bank desk,
+            no hidden spread.
           </div>
         </div>
 
