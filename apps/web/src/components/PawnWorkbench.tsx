@@ -702,49 +702,60 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
               <div className="mt-4 space-y-3 text-xs leading-relaxed text-[var(--ink-muted)]">
                 <div>
                   <p className="font-semibold text-[var(--ink-primary)]">
-                    {lang === "en" ? "1. Sandbox Mode vs Wallet Mode" : "1. Mode Sandbox vs Mode Wallet"}
+                    {lang === "en" ? "1. Sandbox vs Devnet wallet" : "1. Lingkungan sandbox vs Wallet Devnet"}
                   </p>
                   <p>
                     {lang === "en"
-                      ? "Keep 'Sandbox On' to test all roles instantly without a browser wallet. Switch to 'Wallet Mode' + Phantom (Devnet) to sign real Solana transactions."
-                      : "Biarkan 'Sandbox Aktif' untuk mencoba semua peran tanpa ekstensi wallet. Pindah ke 'Mode Wallet' + Phantom (Devnet) untuk transaksi Solana asli."}
+                      ? "Use 'Sandbox environment' to switch between Borrower, Custodian, and Lender in one click. Switch to 'Devnet wallet' with Phantom (Devnet) to sign real Solana transactions using separate wallet accounts."
+                      : "Gunakan 'Lingkungan sandbox' untuk berganti peran Peminjam, Custodian, dan Pendana dalam satu klik. Pilih 'Wallet Devnet' dengan Phantom (Devnet) untuk transaksi Solana asli."}
                   </p>
                 </div>
 
                 <div>
                   <p className="font-semibold text-[var(--ink-primary)]">
-                    {lang === "en" ? "2. Three Roles" : "2. Tiga Peran Utama"}
+                    {lang === "en" ? "2. Roles & permissions" : "2. Tiga peran utama"}
                   </p>
                   <ul className="mt-1 list-disc space-y-0.5 pl-4">
                     <li>
                       <strong className="text-[var(--ink-primary)]">Borrower:</strong>{" "}
                       {lang === "en"
-                        ? "Runs AI Appraisal, creates pawn ticket, and repays loan to reclaim collateral."
-                        : "Hitung taksiran AI, ajukan tiket gadai, dan lunasi pinjaman."}
+                        ? "Estimates asset value, creates collateral requests, and repays loans to reclaim assets."
+                        : "Mengestimasi nilai aset, membuat permintaan agunan, dan melunasi pinjaman."}
                     </li>
                     <li>
                       <strong className="text-[var(--ink-primary)]">Custodian Hub:</strong>{" "}
                       {lang === "en"
-                        ? "Verifies physical RWA (IMEI/seal) before the ticket can be funded."
-                        : "Verifikasi fisik barang (IMEI/segel) sebelum tiket bisa didanai."}
+                        ? "Inspects physical collateral (serial/IMEI & condition) before it can be funded."
+                        : "Memeriksa agunan fisik (serial/IMEI & kondisi) sebelum dapat didanai."}
                     </li>
                     <li>
                       <strong className="text-[var(--ink-primary)]">Lender:</strong>{" "}
                       {lang === "en"
-                        ? "Funds OPEN tickets in SOL and earns interest upon repayment."
-                        : "Mendanai tiket OPEN dengan SOL dan mendapat bunga saat dilunasi."}
+                        ? "Funds verified OPEN requests in SOL and earns interest upon repayment."
+                        : "Mendanai permintaan OPEN dalam SOL dan memperoleh bunga saat pelunasan."}
                     </li>
                   </ul>
                 </div>
 
                 <div>
                   <p className="font-semibold text-[var(--ink-primary)]">
-                    {lang === "en" ? "3. Physical RWA vs Digital NFT" : "3. Barang Fisik (RWA) vs NFT Digital"}
+                    {lang === "en" ? "3. Physical vs digital collateral" : "3. Agunan fisik vs agunan digital"}
                   </p>
                   <p>
                     {lang === "en"
-                      ? "Physical RWA requires Custodian check-in first (PENDING_VERIFICATION → OPEN). Digital NFT locks directly in on-chain PDA escrow (immediately OPEN)."
-                      : "Barang Fisik wajib dicek Custodian dulu (PENDING_VERIFICATION → OPEN). NFT Digital langsung terkunci di escrow on-chain (langsung OPEN)."}
+                      ? "Physical collateral requires Custodian verification before funding. Digital collateral locks directly in Solana escrow (leave Mint address empty to auto-generate a demo token)."
+                      : "Agunan fisik memerlukan verifikasi Custodian sebelum didanai. Agunan digital langsung terkunci di escrow Solana (kosongkan alamat Mint untuk membuat token demo otomatis)."}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="font-semibold text-[var(--ink-primary)]">
+                    {lang === "en" ? "4. Risk score & LTV limit" : "4. Skor risiko & batas LTV"}
+                  </p>
+                  <p>
+                    {lang === "en"
+                      ? "Lower risk scores mean safer collateral (22/100 = Low risk, 60% max LTV). Leaving Serial/IMEI empty raises risk to 47/100 (Medium risk) and lowers the recommended limit to 50% LTV."
+                      : "Skor risiko lebih rendah berarti agunan lebih aman (22/100 = risiko rendah, maks LTV 60%). Jika Serial/IMEI kosong, risiko naik ke 47/100 (sedang) dan batas pinjaman turun ke 50% LTV."}
                   </p>
                 </div>
               </div>
@@ -775,12 +786,15 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                     </h2>
                     <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{t.deskSubtitle}</p>
                   </div>
-                  <span
+                  <button
+                    type="button"
+                    onClick={() => setShowGuide(true)}
                     title={t.ltvTooltip}
-                    className="shrink-0 cursor-help font-mono text-xs text-[var(--ink-muted)] underline decoration-dotted underline-offset-2"
+                    className="inline-flex shrink-0 items-center gap-1 font-mono text-xs text-[var(--ink-muted)] hover:text-[var(--accent-vault)]"
                   >
                     {t.maxLtv}
-                  </span>
+                    <HelpCircle className="h-3.5 w-3.5" />
+                  </button>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <button
@@ -944,9 +958,19 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                       <span className="text-xs font-semibold text-[var(--ink-primary)]">
                         {t.appraisalTitle} · {t.appraisalSourceLabel}
                       </span>
-                      <span className="rounded bg-white px-2 py-0.5 font-mono text-xs font-semibold text-[var(--accent-vault)]">
+                      <button
+                        type="button"
+                        onClick={() => setShowGuide(true)}
+                        title={
+                          lang === "en"
+                            ? "Lower score = safer collateral (22/100 Low, 47/100 Medium when Serial/IMEI is empty). Click for details."
+                            : "Skor lebih kecil = agunan lebih aman (22/100 Rendah, 47/100 Sedang jika Serial/IMEI kosong). Klik untuk panduan."
+                        }
+                        className="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 font-mono text-xs font-semibold text-[var(--accent-vault)] hover:bg-[var(--accent-vault-light)]"
+                      >
                         {appraisal.riskLevel.charAt(0) + appraisal.riskLevel.slice(1).toLowerCase()} risk · {appraisal.riskScore}/100
-                      </span>
+                        <HelpCircle className="h-3 w-3 opacity-70" />
+                      </button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 border-y border-[var(--border-ledger)] py-2.5">
