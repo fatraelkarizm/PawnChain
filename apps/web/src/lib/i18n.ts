@@ -28,7 +28,7 @@ export const COPY = {
       "LTV represents the requested loan amount as a percentage of the estimated collateral value.",
     presetIphone: "iPhone 14 Pro",
     presetNft: "Digital asset",
-    presetDup: "Duplicate asset",
+    presetDup: "Duplicate asset check",
     modePhysical: "Physical collateral",
     modeDigital: "Digital collateral",
     labelBrand: "Brand",
