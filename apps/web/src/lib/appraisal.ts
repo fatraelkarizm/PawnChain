@@ -132,9 +132,8 @@ async function fetchFirecrawlReferences(
       body: JSON.stringify({
         query,
         limit: 6,
-        scrapeOptions: { formats: ["markdown"] },
       }),
-      signal: AbortSignal.timeout(7000),
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!res.ok) return null;
