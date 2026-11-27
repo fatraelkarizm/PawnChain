@@ -58,27 +58,27 @@ export default function OpenGraphImage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "18px", maxWidth: "960px" }}>
           <div
             style={{
-              fontSize: "56px",
+              fontSize: "52px",
               fontWeight: 800,
               lineHeight: 1.12,
               color: "#0f172a",
               letterSpacing: "-0.02em",
             }}
           >
-            Borrow SOL against real assets. Settled in one click.
+            What if your assets could unlock liquidity without losing trust?
           </div>
           <div style={{ fontSize: "24px", color: "#526071", lineHeight: 1.4 }}>
-            Live market pricing, verified physical custody, and atomic Solana escrow—no bank desk,
-            no hidden spread.
+            Unlock the value of physical and digital assets through AI-powered appraisal, verified
+            physical custody, and transparent Solana-powered escrow.
           </div>
         </div>
 
         <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
           {[
-            "Solana Anchor Escrow",
-            "Firecrawl Live Pricing",
-            "ElevenLabs Voice",
-            "Supabase RLS Ledger",
+            "Solana Anchor Program",
+            "AI Market Appraisal",
+            "Verified Physical Custody",
+            "Voice Terms",
           ].map((label) => (
             <div
               key={label}

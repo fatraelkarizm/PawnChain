@@ -10,7 +10,7 @@ const idr = new Intl.NumberFormat("id-ID", {
 /** Only live listings get a link; sample data is labelled as such. */
 export function AppraisalSources({ references }: { references: ComparableReference[] }) {
   if (references.length === 0) {
-    return <p className="text-xs text-[var(--ink-muted)]">No market price evidence.</p>;
+    return <p className="text-xs text-[var(--ink-muted)]">No market references available.</p>;
   }
   return (
     <ul className="space-y-1">
@@ -27,7 +27,7 @@ export function AppraisalSources({ references }: { references: ComparableReferen
               <span className="truncate">{ref.source}</span>
             </a>
           ) : (
-            <span className="truncate text-amber-800">Sample data (not a market price)</span>
+            <span className="truncate text-amber-800">Sample reference · Sandbox only</span>
           )}
           <span className="font-mono text-[11px] tabular-nums text-[var(--ink-primary)]">
             {idr.format(ref.priceIdr)}

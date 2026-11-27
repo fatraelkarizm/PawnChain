@@ -59,12 +59,18 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
         if (!res.ok || !data.ticket) throw new Error(data.error || "Action failed.");
         updated = data.ticket;
       }
-      setMessage({ ok: true, signature, text: `Ticket status is now: ${updated.status}` });
+      const text =
+        action === "repay"
+          ? "Repayment confirmed. Your collateral is now eligible for release."
+          : action === "custody_attest"
+            ? "Physical inspection completed. This collateral request is now open for funding."
+            : `Collateral request updated to ${updated.status}.`;
+      setMessage({ ok: true, signature, text });
       router.refresh();
     } catch (err) {
       setMessage({
         ok: false,
-        text: err instanceof Error ? err.message : "Wallet transaction failed.",
+        text: err instanceof Error ? err.message : "Transaction could not be completed.",
       });
     } finally {
       setBusy(false);
@@ -87,7 +93,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
           {message.text}
           {explorer && (
             <a href={explorer} target="_blank" rel="noreferrer" className="ml-2 font-semibold underline">
-              Solana Explorer
+              View on Solana Explorer
             </a>
           )}
         </div>
@@ -103,7 +109,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("custody_attest")}
             className="rounded bg-amber-700 hover:bg-amber-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Verify Physical Asset (Custodian)
+            Verify collateral
           </button>
         )}
 
@@ -114,7 +120,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("fund")}
             className="rounded bg-[var(--accent-vault)] hover:bg-[var(--accent-vault-hover)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Fund Now ({principalSol.toFixed(2)} SOL)
+            Fund loan ({principalSol.toFixed(2)} SOL)
           </button>
         )}
 
@@ -125,20 +131,21 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("repay")}
             className="rounded bg-[var(--ink-primary)] hover:bg-slate-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Repay & Reclaim ({totalDue} SOL)
+            Repay and reclaim collateral ({totalDue} SOL)
           </button>
         )}
 
         {isBorrower && (ticket.status === "PENDING_VERIFICATION" || ticket.status === "OPEN") && (
           <span className="text-xs text-[var(--ink-muted)]">
-            Connected as Borrower — awaiting{" "}
-            {ticket.status === "OPEN" ? "Lender funding" : "Custodian verification"}.
+            {ticket.status === "OPEN"
+              ? "Waiting for lender funding"
+              : "Custodian access is required to verify this asset."}
           </span>
         )}
 
         {isOtherWallet && ticket.status === "ACTIVE" && (
           <span className="text-xs text-[var(--ink-muted)]">
-            Active loan — awaiting Borrower repayment.
+            Active loan · Awaiting borrower repayment
           </span>
         )}
       </div>

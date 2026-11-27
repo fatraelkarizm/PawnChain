@@ -20,32 +20,32 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "PawnChain — AI-Powered P2P Pawnshop & RWA Escrow on Solana",
+    default: "PawnChain — Your Assets. Your Liquidity. Verified On-Chain.",
     template: "%s | PawnChain",
   },
   description:
-    "P2P pawnshop on Solana with live Firecrawl market appraisal, HMAC & on-chain CollateralLock anti-duplicate checks, ElevenLabs voice contract briefing, and atomic Anchor escrow.",
+    "Unlock the value of physical and digital assets through AI-powered appraisal, verified physical custody, and transparent Solana-powered escrow.",
   keywords: [
     "Solana",
     "DeFi",
-    "P2P Pawnshop",
+    "Collateral Financing",
     "RWA",
-    "Anchor Escrow",
-    "Firecrawl",
-    "ElevenLabs",
+    "Solana Escrow",
+    "AI Asset Valuation",
     "Dev3pack",
   ],
   openGraph: {
-    title: "PawnChain — AI-Powered P2P Pawnshop on Solana",
+    title: "PawnChain — Your Assets. Your Liquidity. Verified On-Chain.",
     description:
-      "Lock digital or custodian-verified RWA collateral on Solana with live AI market appraisal and instant P2P liquidity.",
+      "Unlock the value of physical and digital assets through AI-powered appraisal, verified physical custody, and transparent Solana-powered escrow.",
     siteName: "PawnChain",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PawnChain — Solana P2P Pawnshop",
-    description: "Live Firecrawl AI appraisal + ElevenLabs voice briefing + atomic Anchor escrow.",
+    title: "PawnChain — Your Assets. Your Liquidity. Verified On-Chain.",
+    description:
+      "AI-powered asset valuation, verified physical custody, and transparent Solana escrow.",
   },
 };
 

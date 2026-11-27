@@ -60,14 +60,14 @@ export default async function ShareableTicketPage({
           className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Kembali ke Buku Besar PawnChain
+          Back to collateral marketplace
         </Link>
 
         <div className="rounded-lg border border-[var(--border-ledger)] bg-white p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border-ledger)] pb-4">
             <div>
               <span className="font-mono text-xs text-[var(--ink-muted)]">
-                Tiket Gadai #{ticket.publicTicketId}
+                Collateral request #{ticket.publicTicketId}
               </span>
               <h1 className="mt-1 text-2xl font-bold text-[var(--ink-primary)]">
                 {ticket.asset.brand} {ticket.asset.model}
@@ -77,14 +77,14 @@ export default async function ShareableTicketPage({
               </p>
             </div>
             <span className="rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-2.5 py-1 font-mono text-xs font-semibold text-[var(--accent-vault)]">
-              {ticket.status} · {ticket.mode}
+              {ticket.status} · {ticket.mode === "devnet" ? "Solana Devnet" : "Sandbox simulation"}
             </span>
           </div>
 
           {/* Financial Summary */}
           <div className="my-5 grid grid-cols-2 gap-4 rounded-md bg-[var(--bg-canvas)] p-4 sm:grid-cols-3">
             <div>
-              <span className="block text-xs text-[var(--ink-muted)]">Pinjaman Diminta</span>
+              <span className="block text-xs text-[var(--ink-muted)]">Requested loan</span>
               <span className="font-mono text-lg font-bold tabular-nums">
                 {principalSol.toFixed(2)} SOL
               </span>
@@ -93,16 +93,16 @@ export default async function ShareableTicketPage({
               </span>
             </div>
             <div>
-              <span className="block text-xs text-[var(--ink-muted)]">Bunga / Tenor</span>
+              <span className="block text-xs text-[var(--ink-muted)]">Interest rate / Duration</span>
               <span className="font-mono text-lg font-bold tabular-nums">
                 {(ticket.interestBps / 100).toFixed(1)}%
               </span>
               <span className="block text-xs text-[var(--ink-muted)]">
-                {ticket.tenorDays} hari
+                {ticket.tenorDays} days
               </span>
             </div>
             <div>
-              <span className="block text-xs text-[var(--ink-muted)]">Total Pengembalian</span>
+              <span className="block text-xs text-[var(--ink-muted)]">Total repayment</span>
               <span className="font-mono text-lg font-bold tabular-nums text-[var(--accent-vault)]">
                 {totalRepaySol} SOL
               </span>
@@ -112,19 +112,23 @@ export default async function ShareableTicketPage({
             </div>
           </div>
 
-          {/* AI Valuation & Firecrawl Proof */}
+          {/* Asset Valuation & References */}
           <div className="mb-5 rounded-md border border-[var(--border-ledger)] p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-[var(--ink-primary)]">
-                Bukti Taksiran AI ({ticket.appraisal.modelVersion})
+                Asset valuation · Market data analysis
               </span>
               <span className="font-mono text-xs text-[var(--accent-vault)]">
-                Nilai Median: {ticket.appraisal.medianBenchmarkSol} SOL
+                Estimated market value: {ticket.appraisal.medianBenchmarkSol} SOL
               </span>
             </div>
             <div className="mt-2.5">
               <AppraisalSources references={ticket.appraisal.comparableReferences} />
             </div>
+            <p className="mt-2.5 text-[11px] text-[var(--ink-muted)]">
+              AI-generated valuations are estimates based on available market data. Actual collateral
+              value and loan approval may vary.
+            </p>
           </div>
 
           {/* Custody & Borrower Info */}
@@ -133,11 +137,11 @@ export default async function ShareableTicketPage({
               <ShieldCheck className="h-4 w-4 text-[var(--accent-vault)]" />
               {ticket.asset.assetType === "DIGITAL"
                 ? ticket.mode === "devnet"
-                  ? "Jaminan token di Escrow PDA Solana"
-                  : "Simulasi escrow (sandbox)"
+                  ? "On-chain Solana escrow"
+                  : "Simulated escrow · Sandbox environment"
                 : ticket.custodyAttestationHash
-                  ? `Terverifikasi Custodian (${shortenAddress(ticket.custodyAttestationHash, 6)})`
-                  : "Menunggu verifikasi fisik Custodian"}
+                  ? `Custody verified (${shortenAddress(ticket.custodyAttestationHash, 6)})`
+                  : "Awaiting custody verification"}
             </span>
             <span className="font-mono">
               Borrower: {shortenAddress(ticket.borrowerWallet)}
@@ -151,7 +155,7 @@ export default async function ShareableTicketPage({
               rel="noreferrer"
               className="mb-4 block break-all font-mono text-xs text-[var(--accent-vault)] hover:underline"
             >
-              Akun on-chain: {ticket.chainTicketPubkey}
+              View on Solana Explorer: {ticket.chainTicketPubkey}
             </a>
           )}
 
