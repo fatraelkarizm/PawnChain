@@ -4,7 +4,7 @@ export const SOLANA_RPC_URL =
   process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.devnet.solana.com";
 
 export const PROGRAM_ID_STRING =
-  process.env.NEXT_PUBLIC_ANCHOR_PROGRAM_ID || "Pawn111111111111111111111111111111111111111";
+  process.env.NEXT_PUBLIC_ANCHOR_PROGRAM_ID || "44tTkRHFef9s1TdG9KcH5jKSLQVoDrLUevA6gKr6HDcr";
 
 export function getSolanaConnection(): Connection {
   return new Connection(SOLANA_RPC_URL, "confirmed");
