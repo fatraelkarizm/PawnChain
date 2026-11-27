@@ -14,7 +14,9 @@ export async function POST(req: Request) {
       model?: string;
       condition?: AssetCondition;
       serialNumber?: string;
+      lang?: "en" | "id";
     };
+    const isId = body.lang === "id";
 
     const assetType: AssetType = body.assetType === "DIGITAL" ? "DIGITAL" : "PHYSICAL";
     const brand = (body.brand || "").trim();
@@ -25,7 +27,11 @@ export async function POST(req: Request) {
 
     if (!brand || !model) {
       return NextResponse.json(
-        { error: "Merek dan model aset wajib diisi untuk appraisal." },
+        {
+          error: isId
+            ? "Merek dan model aset wajib diisi untuk appraisal."
+            : "Brand and model are required for appraisal.",
+        },
         { status: 400 }
       );
     }
@@ -38,7 +44,9 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             error: "POTENTIAL_DUPLICATE",
-            message: `Serial/IMEI ini sudah terdaftar sebagai agunan aktif pada Tiket #${existing.publicTicketId} (${existing.status}). Pengajuan diblokir untuk mencegah gadai ganda.`,
+            message: isId
+              ? `Serial/IMEI ini sudah terdaftar sebagai agunan aktif pada Tiket #${existing.publicTicketId} (${existing.status}). Pengajuan diblokir untuk mencegah gadai ganda.`
+              : `This Serial/IMEI is already registered as active collateral on Ticket #${existing.publicTicketId} (${existing.status}). Submission blocked to prevent double-pledging.`,
             duplicateTicketId: existing.publicTicketId,
           },
           { status: 409 }

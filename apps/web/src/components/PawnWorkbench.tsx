@@ -182,6 +182,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           model,
           condition,
           serialNumber: assetType === "PHYSICAL" ? serialNumber : "",
+          lang,
         }),
       });
       const data = (await res.json()) as {
@@ -273,6 +274,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           interestBps: Math.round(Number(interestPct) * 100),
           tenorDays: Number(tenorDays),
           chainTxSignature,
+          lang,
         }),
       });
       const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
@@ -349,6 +351,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           action,
           actorWallet: activeWallet,
           txSignature,
+          lang,
           conditionReport:
             action === "custody_attest" ? "Physical seal & serial verified at Hub Jakarta" : undefined,
         }),

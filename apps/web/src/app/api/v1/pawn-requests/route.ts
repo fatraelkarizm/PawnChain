@@ -22,7 +22,9 @@ export async function POST(req: Request) {
       interestBps?: number;
       tenorDays?: number;
       chainTxSignature?: string;
+      lang?: "en" | "id";
     };
+    const isId = body.lang === "id";
 
     const borrowerWallet = (body.borrowerWallet || "").trim();
     const brand = (body.brand || "").trim();
@@ -35,13 +37,26 @@ export async function POST(req: Request) {
       body.condition === "Mint" || body.condition === "Fair" ? body.condition : "Good";
 
     if (!borrowerWallet || !brand || !model || !Number.isFinite(principalSol) || principalSol <= 0) {
-      return NextResponse.json({ error: "Parameter pengajuan gadai tidak valid." }, { status: 400 });
+      return NextResponse.json(
+        { error: isId ? "Parameter pengajuan gadai tidak valid." : "Invalid pawn request parameters." },
+        { status: 400 }
+      );
     }
     if (interestBps < 0 || interestBps > 5000) {
-      return NextResponse.json({ error: "Bunga maksimal 50% (5000 bps)." }, { status: 400 });
+      return NextResponse.json(
+        { error: isId ? "Bunga maksimal 50% (5000 bps)." : "Maximum interest is 50% (5000 bps)." },
+        { status: 400 }
+      );
     }
     if (tenorDays < 1 || tenorDays > 90) {
-      return NextResponse.json({ error: "Tenor pinjaman harus antara 1 sampai 90 hari." }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: isId
+            ? "Tenor pinjaman harus antara 1 sampai 90 hari."
+            : "Loan tenor must be between 1 and 90 days.",
+        },
+        { status: 400 }
+      );
     }
 
     const serialRaw = (body.serialNumber || "").trim();
@@ -51,7 +66,9 @@ export async function POST(req: Request) {
       if (dup) {
         return NextResponse.json(
           {
-            error: `Serial/IMEI sudah aktif di Tiket #${dup.publicTicketId}. Gadai ganda ditolak.`,
+            error: isId
+              ? `Serial/IMEI sudah aktif di Tiket #${dup.publicTicketId}. Gadai ganda ditolak.`
+              : `Serial/IMEI is already active on Ticket #${dup.publicTicketId}. Double-pledging rejected.`,
           },
           { status: 409 }
         );
@@ -73,7 +90,9 @@ export async function POST(req: Request) {
     if (principalSol > appraisal.suggestedMaxLoanSol) {
       return NextResponse.json(
         {
-          error: `Pinjaman ${principalSol} SOL melebihi batas aman AI (${appraisal.suggestedMaxLoanSol} SOL pada LTV ${Math.round(appraisal.suggestedLtv * 100)}%).`,
+          error: isId
+            ? `Pinjaman ${principalSol} SOL melebihi batas aman AI (${appraisal.suggestedMaxLoanSol} SOL pada LTV ${Math.round(appraisal.suggestedLtv * 100)}%).`
+            : `Requested loan ${principalSol} SOL exceeds AI safe limit (${appraisal.suggestedMaxLoanSol} SOL at ${Math.round(appraisal.suggestedLtv * 100)}% LTV).`,
         },
         { status: 400 }
       );
