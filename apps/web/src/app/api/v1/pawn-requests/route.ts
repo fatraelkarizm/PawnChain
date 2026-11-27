@@ -138,6 +138,18 @@ export async function POST(req: Request) {
       return fail(400, "Loan duration must be between 1 and 90 days.");
     }
 
+    const mintRaw = (body.mintAddress || "").trim();
+    if (assetType === "DIGITAL" && mintRaw.length > 0) {
+      try {
+        new PublicKey(mintRaw);
+      } catch {
+        return fail(
+          400,
+          "Invalid Solana mint address. Leave this field empty to automatically generate a demo token."
+        );
+      }
+    }
+
     const serialRaw = (body.serialNumber || "").trim();
     const serialHash = serialRaw ? hashAssetIdentifier(serialRaw) : null;
     if (serialHash) {

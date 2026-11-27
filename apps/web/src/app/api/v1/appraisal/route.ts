@@ -38,19 +38,17 @@ export async function POST(req: Request) {
     }
 
     let mintAddress: string | null = null;
-    if (mode === "devnet") {
-      if (assetType === "PHYSICAL" && normalizeIdentifier(serialRaw).length < 5) {
-        return fail(400, "Serial number / IMEI is required for physical collateral on Devnet.");
-      }
-      if (assetType === "DIGITAL" && (body.mintAddress || "").trim().length > 0) {
-        try {
-          mintAddress = new PublicKey((body.mintAddress || "").trim()).toBase58();
-        } catch {
-          return fail(
-            400,
-            "Invalid Solana mint address. Leave this field empty to automatically mint a demo token."
-          );
-        }
+    if (mode === "devnet" && assetType === "PHYSICAL" && normalizeIdentifier(serialRaw).length < 5) {
+      return fail(400, "Serial number / IMEI is required for physical collateral on Devnet.");
+    }
+    if (assetType === "DIGITAL" && (body.mintAddress || "").trim().length > 0) {
+      try {
+        mintAddress = new PublicKey((body.mintAddress || "").trim()).toBase58();
+      } catch {
+        return fail(
+          400,
+          "Invalid Solana mint address. Leave this field empty to automatically generate a demo token."
+        );
       }
     }
 
