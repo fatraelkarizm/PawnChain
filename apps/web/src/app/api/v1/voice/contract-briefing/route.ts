@@ -23,7 +23,7 @@ export async function POST(req: Request) {
         : `Ringkasan kontrak PawnChain. Anda menggadaikan ${assetName} untuk pinjaman sebesar ${principalSol} SOL dengan bunga tetap ${interestPercent} persen selama ${tenorDays} hari. Total pelunasan saat jatuh tempo adalah ${totalRepay} SOL. Jika melewati batas waktu, jaminan berpindah otomatis ke pemberi pinjaman.`;
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || "21m00Tcm4TlvDq8ikWAM";
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
 
     if (apiKey) {
       const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
