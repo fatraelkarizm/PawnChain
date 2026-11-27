@@ -1,5 +1,7 @@
 export type AssetType = "DIGITAL" | "PHYSICAL";
 export type AssetCondition = "Mint" | "Good" | "Fair";
+/** sandbox: simulated, no chain. devnet: state mirrors the on-chain PawnTicket account. */
+export type TicketMode = "sandbox" | "devnet";
 export type TicketStatus =
   | "PENDING_VERIFICATION"
   | "OPEN"
@@ -15,7 +17,7 @@ export interface ComparableReference {
   priceIdr: number;
   priceSol: number;
   fetchedAt: string;
-  sourceType: "firecrawl_live" | "cached_benchmark";
+  sourceType: "firecrawl_live" | "sample_data";
 }
 
 export interface AppraisalResult {
@@ -57,6 +59,8 @@ export interface AssetRecord {
 export interface PawnTicket {
   id: string;
   publicTicketId: number;
+  mode: TicketMode;
+  custodianWallet: string | null;
   asset: AssetRecord;
   appraisal: AppraisalResult;
   borrowerWallet: string;
@@ -73,4 +77,19 @@ export interface PawnTicket {
   status: TicketStatus;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Appraised metadata the server signs before the borrower creates the on-chain ticket. */
+export interface PreparedPledge {
+  assetType: AssetType;
+  category: string;
+  brand: string;
+  model: string;
+  condition: AssetCondition;
+  description: string;
+  /** Collateral fingerprint; also seeds the on-chain collateral lock. */
+  serialHash: string;
+  mintAddress: string | null;
+  metadataUri: string;
+  appraisal: AppraisalResult;
 }

@@ -20,21 +20,16 @@ import type {
   PawnTicket,
 } from "@/types/pawn";
 import { COPY, type Lang } from "@/lib/i18n";
-import { explorerTxUrl } from "@/lib/solana";
-import { sendDevnetMemoTx, sendDevnetTransferTx } from "@/lib/walletTx";
+import { explorerAddressUrl, explorerTxUrl } from "@/lib/solana";
+import { createDevnetPledge, runDevnetAction, type TicketAction } from "@/lib/devnetActions";
+import { SANDBOX_WALLETS, type SandboxRole } from "@/lib/sandbox";
+import { AppraisalSources } from "@/components/AppraisalSources";
 
 const WalletMultiButton = dynamic(
   async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
   { ssr: false }
 );
 
-const SANDBOX_WALLETS = {
-  borrower: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
-  lender: "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
-  custodian: "CustodianHubJakartaVerified11111111111111111",
-};
-
-type SandboxRole = keyof typeof SANDBOX_WALLETS;
 type MarketFilter = "ALL" | "OPEN" | "PENDING_VERIFICATION" | "ACTIVE" | "REPAID";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
@@ -68,6 +63,10 @@ function StatusBadge({ status, label }: { status: PawnTicket["status"]; label: s
       {label}
     </span>
   );
+}
+
+function isOverdue(ticket: PawnTicket): boolean {
+  return ticket.status === "ACTIVE" && !!ticket.dueAt && Date.parse(ticket.dueAt) < Date.now();
 }
 
 function TicketProgress({ status, lang }: { status: PawnTicket["status"]; lang: Lang }) {
@@ -121,9 +120,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
   const [sandboxEnabled, setSandboxEnabled] = useState(true);
   const [sandboxRole, setSandboxRole] = useState<SandboxRole>("borrower");
-  const isWalletMode = !sandboxEnabled && connected && Boolean(publicKey);
-  const activeWallet =
-    isWalletMode && publicKey ? publicKey.toBase58() : SANDBOX_WALLETS[sandboxRole];
+  const walletMissing = !sandboxEnabled && !(connected && publicKey);
+  const connectedAddress = publicKey?.toBase58() ?? "";
+  const activeWallet = sandboxEnabled ? SANDBOX_WALLETS[sandboxRole] : connectedAddress;
 
   const [tickets, setTickets] = useState<PawnTicket[]>(initialTickets);
   const [filter, setFilter] = useState<MarketFilter>("ALL");
@@ -149,7 +148,11 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
   const [submitting, setSubmitting] = useState(false);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "ok" | "err";
+    text: string;
+    signature?: string;
+  } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const refreshTickets = useCallback(async () => {
@@ -169,11 +172,15 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // The devnet preview for digital assets needs an existing mint to check.
+          mode: sandboxEnabled || (assetType === "DIGITAL" && !mintAddress) ? "sandbox" : "devnet",
           assetType,
           brand,
           model,
+          description,
           condition,
           serialNumber: assetType === "PHYSICAL" ? serialNumber : "",
+          mintAddress,
         }),
       });
       const data = (await res.json()) as {
@@ -190,7 +197,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       }
       if (data.appraisal) {
         setAppraisal(data.appraisal);
-        setPrincipalSol(String(Math.min(1.5, data.appraisal.suggestedMaxLoanSol)));
+        if (data.appraisal.comparableReferences.length > 0) {
+          setPrincipalSol(String(Math.min(1.5, data.appraisal.suggestedMaxLoanSol)));
+        }
       }
     } catch {
       const msg = "Failed to connect to appraisal service.";
@@ -240,48 +249,54 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     setSubmitting(true);
     setFeedback(null);
     try {
-      let chainTxSignature: string | undefined;
-      if (isWalletMode) {
-        chainTxSignature = await sendDevnetMemoTx(
-          connection,
-          wallet,
-          `PawnChain:Create:${brand} ${model}:${principalSol}SOL`
-        );
-      }
-
-      const res = await fetch("/api/v1/pawn-requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          borrowerWallet: activeWallet,
+      let ticket: PawnTicket;
+      let signature: string | undefined;
+      if (!sandboxEnabled) {
+        ({ ticket, signature } = await createDevnetPledge(connection, wallet, {
           assetType,
           brand,
           model,
-          description,
           condition,
+          description,
           serialNumber: assetType === "PHYSICAL" ? serialNumber : "",
-          mintAddress: assetType === "DIGITAL" ? mintAddress || undefined : undefined,
+          mintAddress: assetType === "DIGITAL" ? mintAddress : "",
           principalSol: Number(principalSol),
           interestBps: Math.round(Number(interestPct) * 100),
           tenorDays: Number(tenorDays),
-          chainTxSignature,
-        }),
-      });
-      const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
-      if (!res.ok) {
-        setFeedback({ type: "err", text: data.error || "Failed to create pawn ticket." });
-        return;
-      }
-      if (data.ticket) {
-        setFeedback({
-          type: "ok",
-          text:
-            data.ticket.status === "PENDING_VERIFICATION"
-              ? `Ticket #${data.ticket.publicTicketId} created. Switch to Custodian Hub to verify physical check-in.`
-              : `Ticket #${data.ticket.publicTicketId} locked in escrow and listed on marketplace.`,
+        }));
+      } else {
+        const res = await fetch("/api/v1/pawn-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            borrowerWallet: activeWallet,
+            assetType,
+            brand,
+            model,
+            description,
+            condition,
+            serialNumber: assetType === "PHYSICAL" ? serialNumber : "",
+            mintAddress: assetType === "DIGITAL" ? mintAddress || undefined : undefined,
+            principalSol: Number(principalSol),
+            interestBps: Math.round(Number(interestPct) * 100),
+            tenorDays: Number(tenorDays),
+          }),
         });
-        await refreshTickets();
+        const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
+        if (!res.ok || !data.ticket) {
+          throw new Error(data.error || "Failed to create pawn ticket.");
+        }
+        ticket = data.ticket;
       }
+      setFeedback({
+        type: "ok",
+        signature,
+        text:
+          ticket.status === "PENDING_VERIFICATION"
+            ? `Ticket #${ticket.publicTicketId} created. A custodian must verify the physical item next.`
+            : `Ticket #${ticket.publicTicketId} is open on the marketplace.`,
+      });
+      await refreshTickets();
     } catch (err) {
       setFeedback({
         type: "err",
@@ -292,64 +307,35 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     }
   }
 
-  async function handleTicketAction(
-    ticket: PawnTicket,
-    action: "custody_attest" | "fund" | "repay" | "cancel"
-  ) {
+  async function handleTicketAction(ticket: PawnTicket, action: TicketAction) {
     setActionBusyId(ticket.id);
     setFeedback(null);
     try {
-      let txSignature: string | undefined;
-      if (isWalletMode) {
-        if (action === "fund") {
-          txSignature = await sendDevnetTransferTx(
-            connection,
-            wallet,
-            ticket.borrowerWallet,
-            ticket.principalLamports,
-            `PawnChain:Fund:#${ticket.publicTicketId}`
-          );
-        } else if (action === "repay" && ticket.lenderWallet) {
-          const interest = Math.floor((ticket.principalLamports * ticket.interestBps) / 10_000);
-          txSignature = await sendDevnetTransferTx(
-            connection,
-            wallet,
-            ticket.lenderWallet,
-            ticket.principalLamports + interest,
-            `PawnChain:Repay:#${ticket.publicTicketId}`
-          );
-        } else if (action === "custody_attest") {
-          txSignature = await sendDevnetMemoTx(
-            connection,
-            wallet,
-            `PawnChain:CustodyAttest:#${ticket.publicTicketId}`
-          );
-        }
-      }
-
-      const res = await fetch(`/api/v1/pawn-tickets/${ticket.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          actorWallet: activeWallet,
-          txSignature,
-          conditionReport:
-            action === "custody_attest" ? "Physical seal & serial verified at Hub Jakarta" : undefined,
-        }),
-      });
-      const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
-      if (!res.ok) {
-        setFeedback({ type: "err", text: data.error || "Action failed." });
-        return;
-      }
-      if (data.ticket) {
-        setFeedback({
-          type: "ok",
-          text: `Ticket #${data.ticket.publicTicketId} updated to ${data.ticket.status}.`,
+      let updated: PawnTicket;
+      let signature: string | undefined;
+      if (ticket.mode === "devnet") {
+        ({ ticket: updated, signature } = await runDevnetAction(connection, wallet, ticket, action));
+      } else {
+        const res = await fetch(`/api/v1/pawn-tickets/${ticket.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            actorWallet: SANDBOX_WALLETS[sandboxRole],
+            conditionReport:
+              action === "custody_attest" ? "Sandbox: physical seal & serial checked" : undefined,
+          }),
         });
-        await refreshTickets();
+        const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
+        if (!res.ok || !data.ticket) throw new Error(data.error || "Action failed.");
+        updated = data.ticket;
       }
+      setFeedback({
+        type: "ok",
+        signature,
+        text: `Ticket #${updated.publicTicketId} updated to ${updated.status}.`,
+      });
+      await refreshTickets();
     } catch (err) {
       setFeedback({
         type: "err",
@@ -384,7 +370,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       setModel("Tensorian #1904 (Devnet)");
       setCondition("Mint");
       setSerialNumber("");
-      setMintAddress("TensorianDevnetMint9999999999999999999999");
+      setMintAddress("");
       setDescription("Solana NFT collateral locked directly in PDA escrow.");
     }
   }
@@ -486,7 +472,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           <div className="flex flex-col items-start md:items-end">
             <span className="text-xs text-[var(--ink-muted)]">{t.activeAccount}</span>
             <span className="font-mono text-xs font-medium text-[var(--ink-primary)]">
-              {shortAddr(activeWallet)} ({isWalletMode ? "Devnet Wallet" : sandboxRole})
+              {shortAddr(activeWallet || null)} ({sandboxEnabled ? sandboxRole : "Devnet Wallet"})
             </span>
           </div>
         </div>
@@ -534,9 +520,19 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                         ? "Action Blocked / Alert"
                         : "Peringatan Sistem"}
                   </h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+                  <p className="mt-1.5 break-words text-sm leading-relaxed text-[var(--ink-muted)]">
                     {feedback.text}
                   </p>
+                  {feedback.signature && (
+                    <a
+                      href={explorerTxUrl(feedback.signature) ?? "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[var(--accent-vault)] hover:underline"
+                    >
+                      Solana Explorer <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
                 </div>
               </div>
               <div className="mt-5 flex justify-end">
@@ -690,7 +686,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                         type="text"
                         value={mintAddress}
                         onChange={(e) => setMintAddress(e.target.value)}
-                        placeholder="Auto demo mint"
+                        placeholder="Empty = mint a demo token"
                         className="w-full rounded border border-[var(--border-ledger)] px-3 py-2 font-mono text-xs focus:border-[var(--accent-vault)] focus:outline-none"
                       />
                     </div>
@@ -753,7 +749,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           {t.maxLoan} ({Math.round(appraisal.suggestedLtv * 100)}% LTV)
                         </span>
                         <span className="font-mono text-sm font-bold tabular-nums text-[var(--accent-vault)]">
-                          Max {appraisal.suggestedMaxLoanSol} SOL
+                          {appraisal.comparableReferences.length > 0
+                            ? `Max ${appraisal.suggestedMaxLoanSol} SOL`
+                            : "Not appraised"}
                         </span>
                         <span className="block font-mono text-[11px] text-[var(--ink-muted)]">
                           {t.confidence} {Math.round(appraisal.confidenceScore * 100)}%
@@ -763,30 +761,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
                     <div>
                       <span className="mb-1.5 block text-[11px] font-semibold text-[var(--ink-muted)]">
-                        {t.priceSources} (
-                        {appraisal.comparableReferences[0]?.sourceType === "firecrawl_live"
-                          ? "Live Firecrawl"
-                          : "Cached Benchmark"}
-                        )
+                        {t.priceSources}
                       </span>
-                      <ul className="space-y-1">
-                        {appraisal.comparableReferences.map((ref, i) => (
-                          <li key={i} className="flex items-center justify-between text-xs">
-                            <a
-                              href={ref.url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex max-w-[65%] items-center gap-1 truncate text-[var(--accent-vault)] hover:underline"
-                            >
-                              <ExternalLink className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{ref.source}</span>
-                            </a>
-                            <span className="font-mono text-[11px] tabular-nums text-[var(--ink-primary)]">
-                              {formatIdr(ref.priceIdr)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
+                      <AppraisalSources references={appraisal.comparableReferences} />
                     </div>
                   </div>
                 )}
@@ -856,10 +833,12 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
                 <button
                   type="submit"
-                  disabled={submitting}
+                  disabled={submitting || walletMissing}
                   className="w-full rounded-md bg-[var(--accent-vault)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
                 >
-                  {submitting
+                  {walletMissing
+                    ? t.connectWallet
+                    : submitting
                     ? t.btnCreating
                     : assetType === "PHYSICAL"
                       ? t.btnCreatePhysical
@@ -921,9 +900,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                       principalSolVal *
                       (1 + ticket.interestBps / 10_000)
                     ).toFixed(3);
-                    const expUrl = ticket.chainTxSignature
-                      ? explorerTxUrl(ticket.chainTxSignature)
-                      : null;
+                    const lastSignature = ticket.repayTxSignature ?? ticket.chainTxSignature;
+                    const expUrl = lastSignature ? explorerTxUrl(lastSignature) : null;
+                    const isDevnet = ticket.mode === "devnet";
+                    const viewer = isDevnet ? connectedAddress : SANDBOX_WALLETS[sandboxRole];
 
                     return (
                       <article key={ticket.id} className="p-5">
@@ -940,6 +920,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                                 status={ticket.status}
                                 label={t.status[ticket.status]}
                               />
+                              <span className="rounded border border-[var(--border-ledger)] px-1.5 py-0.5 font-mono text-[10px] uppercase text-[var(--ink-muted)]">
+                                {ticket.mode}
+                              </span>
                             </div>
                             <p className="mt-1 text-xs text-[var(--ink-muted)]">
                               {ticket.asset.description}
@@ -1005,7 +988,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                               {t.aiLtv}
                             </span>
                             <span className="font-mono text-sm font-semibold tabular-nums text-[var(--accent-vault)]">
-                              {ticket.appraisal.medianBenchmarkSol} SOL ({Math.round(ticket.ltv * 100)}%)
+                              {ticket.appraisal.comparableReferences.length > 0
+                                ? `${ticket.appraisal.medianBenchmarkSol} SOL (${Math.round(ticket.ltv * 100)}%)`
+                                : "—"}
                             </span>
                           </div>
                         </div>
@@ -1015,7 +1000,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                             <span className="inline-flex items-center gap-1">
                               <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent-vault)]" />
                               {ticket.asset.assetType === "DIGITAL"
-                                ? t.escrowOnChain
+                                ? isDevnet
+                                  ? t.escrowOnChain
+                                  : t.escrowSimulated
                                 : ticket.custodyAttestationHash
                                   ? t.custodianVerified
                                   : t.custodianPending}
@@ -1040,10 +1027,17 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                               Solana Explorer
                               <ExternalLink className="h-3 w-3" />
                             </a>
-                          ) : (
-                            <span className="font-mono text-[11px]">
+                          ) : ticket.chainTicketPubkey ? (
+                            <a
+                              href={explorerAddressUrl(ticket.chainTicketPubkey)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-mono text-[11px] text-[var(--accent-vault)] hover:underline"
+                            >
                               PDA: {shortAddr(ticket.chainTicketPubkey)}
-                            </span>
+                            </a>
+                          ) : (
+                            <span className="font-mono text-[11px]">{t.simulated}</span>
                           )}
                         </div>
 
@@ -1051,7 +1045,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           {ticket.status === "PENDING_VERIFICATION" && (
                             <button
                               type="button"
-                              disabled={actionBusyId === ticket.id}
+                              disabled={actionBusyId === ticket.id || (isDevnet && !publicKey)}
                               onClick={() => handleTicketAction(ticket, "custody_attest")}
                               className="rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
                             >
@@ -1062,7 +1056,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           {ticket.status === "OPEN" && (
                             <button
                               type="button"
-                              disabled={actionBusyId === ticket.id}
+                              disabled={actionBusyId === ticket.id || (isDevnet && !publicKey)}
                               onClick={() => handleTicketAction(ticket, "fund")}
                               className="rounded bg-[var(--accent-vault)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
                             >
@@ -1073,7 +1067,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           {ticket.status === "ACTIVE" && (
                             <button
                               type="button"
-                              disabled={actionBusyId === ticket.id}
+                              disabled={actionBusyId === ticket.id || (isDevnet && !publicKey)}
                               onClick={() => handleTicketAction(ticket, "repay")}
                               className="rounded bg-[var(--ink-primary)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                             >
@@ -1081,11 +1075,22 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                             </button>
                           )}
 
+                          {isOverdue(ticket) && viewer === ticket.lenderWallet && (
+                            <button
+                              type="button"
+                              disabled={actionBusyId === ticket.id}
+                              onClick={() => handleTicketAction(ticket, "claim_default")}
+                              className="rounded bg-rose-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-800 disabled:opacity-50"
+                            >
+                              {t.btnClaim}
+                            </button>
+                          )}
+
                           {(ticket.status === "OPEN" || ticket.status === "PENDING_VERIFICATION") &&
-                            activeWallet === ticket.borrowerWallet && (
+                            viewer === ticket.borrowerWallet && (
                               <button
                                 type="button"
-                                disabled={actionBusyId === ticket.id}
+                                disabled={actionBusyId === ticket.id || (isDevnet && !publicKey)}
                                 onClick={() => handleTicketAction(ticket, "cancel")}
                                 className="rounded border border-[var(--border-ledger)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
                               >
@@ -1108,7 +1113,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 text-xs text-[var(--ink-muted)] sm:px-6">
           <span>PawnChain — Dev3pack Global Hackathon (Solana Devnet)</span>
           <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
-            <span>Anchor Escrow</span>
+            <span>Anchor Escrow (Devnet)</span>
             <span>Firecrawl Appraisal</span>
             <span>ElevenLabs Voice</span>
             <span>Supabase Ledger</span>

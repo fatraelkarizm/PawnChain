@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getTicketById } from "@/lib/store";
 import { formatIdrFromSol, lamportsToSol, shortenAddress } from "@/lib/security";
 import { TicketActionClient } from "@/components/TicketActionClient";
+import { AppraisalSources } from "@/components/AppraisalSources";
+import { syncDevnetTicket } from "@/lib/devnet";
+import { explorerAddressUrl } from "@/lib/solana";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +38,14 @@ export default async function ShareableTicketPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ticket = await getTicketById(id);
+  const stored = await getTicketById(id);
 
-  if (!ticket) {
+  if (!stored) {
     notFound();
   }
+
+  // Show the last known state if the RPC is unreachable.
+  const ticket = await syncDevnetTicket(stored).catch(() => stored);
 
   const principalSol = lamportsToSol(ticket.principalLamports);
   const totalRepaySol = Number(
@@ -71,7 +77,7 @@ export default async function ShareableTicketPage({
               </p>
             </div>
             <span className="rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-2.5 py-1 font-mono text-xs font-semibold text-[var(--accent-vault)]">
-              {ticket.status}
+              {ticket.status} · {ticket.mode}
             </span>
           </div>
 
@@ -116,24 +122,9 @@ export default async function ShareableTicketPage({
                 Nilai Median: {ticket.appraisal.medianBenchmarkSol} SOL
               </span>
             </div>
-            <ul className="mt-2.5 space-y-1.5">
-              {ticket.appraisal.comparableReferences.map((ref, idx) => (
-                <li key={idx} className="flex items-center justify-between text-xs">
-                  <a
-                    href={ref.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[var(--accent-vault)] hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    {ref.source}
-                  </a>
-                  <span className="font-mono tabular-nums">
-                    {ref.priceSol} SOL
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-2.5">
+              <AppraisalSources references={ticket.appraisal.comparableReferences} />
+            </div>
           </div>
 
           {/* Custody & Borrower Info */}
@@ -141,7 +132,9 @@ export default async function ShareableTicketPage({
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-[var(--accent-vault)]" />
               {ticket.asset.assetType === "DIGITAL"
-                ? "Jaminan NFT terkunci di Escrow PDA Solana"
+                ? ticket.mode === "devnet"
+                  ? "Jaminan token di Escrow PDA Solana"
+                  : "Simulasi escrow (sandbox)"
                 : ticket.custodyAttestationHash
                   ? `Terverifikasi Custodian (${shortenAddress(ticket.custodyAttestationHash, 6)})`
                   : "Menunggu verifikasi fisik Custodian"}
@@ -150,6 +143,17 @@ export default async function ShareableTicketPage({
               Borrower: {shortenAddress(ticket.borrowerWallet)}
             </span>
           </div>
+
+          {ticket.chainTicketPubkey && (
+            <a
+              href={explorerAddressUrl(ticket.chainTicketPubkey)}
+              target="_blank"
+              rel="noreferrer"
+              className="mb-4 block break-all font-mono text-xs text-[var(--accent-vault)] hover:underline"
+            >
+              Akun on-chain: {ticket.chainTicketPubkey}
+            </a>
+          )}
 
           <TicketActionClient ticket={ticket} />
         </div>

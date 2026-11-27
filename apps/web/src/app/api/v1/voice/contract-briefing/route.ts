@@ -19,8 +19,8 @@ export async function POST(req: Request) {
 
     const script =
       lang === "en"
-        ? `PawnChain contract summary. You are pledging ${assetName} for a loan of ${principalSol} SOL. Flat interest is ${interestPercent} percent over ${tenorDays} days. Total repayment at maturity is ${totalRepay} SOL. If unpaid after the due date, collateral transfers automatically to the lender.`
-        : `Ringkasan kontrak PawnChain. Anda menggadaikan ${assetName} untuk pinjaman sebesar ${principalSol} SOL dengan bunga tetap ${interestPercent} persen selama ${tenorDays} hari. Total pelunasan saat jatuh tempo adalah ${totalRepay} SOL. Jika melewati batas waktu, jaminan berpindah otomatis ke pemberi pinjaman.`;
+        ? `PawnChain contract summary. You are pledging ${assetName} for a loan of ${principalSol} SOL. Flat interest is ${interestPercent} percent over ${tenorDays} days. Total repayment at maturity is ${totalRepay} SOL. If unpaid after the due date, the lender can claim the collateral.`
+        : `Ringkasan kontrak PawnChain. Anda menggadaikan ${assetName} untuk pinjaman sebesar ${principalSol} SOL dengan bunga tetap ${interestPercent} persen selama ${tenorDays} hari. Total pelunasan saat jatuh tempo adalah ${totalRepay} SOL. Jika melewati batas waktu, pemberi pinjaman dapat mengklaim jaminan.`;
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";

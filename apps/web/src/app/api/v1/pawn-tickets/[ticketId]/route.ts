@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyDevnetTransaction } from "@/lib/solana";
+import { syncDevnetTicket } from "@/lib/devnet";
+import { SANDBOX_WALLETS } from "@/lib/sandbox";
 import { generateAttestationHash, getTicketById, saveTicket } from "@/lib/store";
 
 export async function GET(
@@ -26,11 +27,22 @@ export async function POST(
     }
 
     const body = (await req.json()) as {
-      action: "custody_attest" | "fund" | "repay" | "claim_default" | "cancel";
+      action: "sync" | "custody_attest" | "fund" | "repay" | "claim_default" | "cancel";
       actorWallet?: string;
       txSignature?: string;
       conditionReport?: string;
     };
+
+    // Devnet tickets ignore client claims entirely: the chain is the source of truth.
+    if (ticket.mode === "devnet") {
+      if (body.action !== "sync") {
+        return NextResponse.json(
+          { error: "Tiket devnet hanya berubah lewat transaksi on-chain." },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ ticket: await syncDevnetTicket(ticket, body.txSignature) });
+    }
 
     const actor = (body.actorWallet || "").trim();
     if (!actor) {
@@ -47,15 +59,16 @@ export async function POST(
       if (ticket.status !== "PENDING_VERIFICATION") {
         return NextResponse.json({ error: "Tiket tidak berada pada status menunggu verifikasi." }, { status: 409 });
       }
-      // Separation of authority: borrower cannot self-attest physical custody
-      if (actor === ticket.borrowerWallet) {
+      // Separation of authority: only the custodian may attest, never the borrower.
+      if (actor !== SANDBOX_WALLETS.custodian || actor === ticket.borrowerWallet) {
         return NextResponse.json(
-          { error: "Borrower dilarang memverifikasi custody barangnya sendiri." },
+          { error: "Hanya Custodian terdaftar yang dapat memverifikasi barang." },
           { status: 403 }
         );
       }
 
       ticket.custodyAttestationHash = generateAttestationHash(ticket.id, actor);
+      ticket.custodianWallet = actor;
       ticket.asset.verificationStatus = "VERIFIED";
       ticket.asset.custodyStatus = "IN_CUSTODY";
       if (body.conditionReport) {
@@ -74,15 +87,14 @@ export async function POST(
       if (actor === ticket.borrowerWallet) {
         return NextResponse.json({ error: "Borrower tidak boleh mendanai tiket miliknya sendiri." }, { status: 403 });
       }
-      const txCheck = await verifyDevnetTransaction(body.txSignature || `SandboxTx_Fund_${ticket.publicTicketId}`);
-      if (!txCheck.verified) {
-        return NextResponse.json({ error: txCheck.error || "Transaksi Solana tidak valid." }, { status: 400 });
+      if (actor === ticket.custodianWallet) {
+        return NextResponse.json({ error: "Custodian tidak boleh mendanai barang yang ia simpan." }, { status: 403 });
       }
 
       const due = new Date(now.getTime() + ticket.tenorDays * 86_400_000);
       ticket.lenderWallet = actor;
       ticket.dueAt = due.toISOString();
-      ticket.chainTxSignature = body.txSignature || ticket.chainTxSignature;
+      ticket.chainTxSignature = `SandboxTx_Fund_${ticket.publicTicketId}`;
       ticket.status = "ACTIVE";
       ticket.updatedAt = nowIso;
       await saveTicket(ticket);
@@ -96,12 +108,7 @@ export async function POST(
       if (actor !== ticket.borrowerWallet) {
         return NextResponse.json({ error: "Hanya Borrower pemilik tiket yang dapat melunasi." }, { status: 403 });
       }
-      const txCheck = await verifyDevnetTransaction(body.txSignature || `SandboxTx_Repay_${ticket.publicTicketId}`);
-      if (!txCheck.verified) {
-        return NextResponse.json({ error: txCheck.error || "Transaksi pelunasan tidak valid." }, { status: 400 });
-      }
-
-      ticket.repayTxSignature = body.txSignature || `SandboxTx_Repay_${ticket.publicTicketId}`;
+      ticket.repayTxSignature = `SandboxTx_Repay_${ticket.publicTicketId}`;
       ticket.asset.custodyStatus = "RELEASED";
       ticket.status = "REPAID";
       ticket.updatedAt = nowIso;
@@ -140,7 +147,8 @@ export async function POST(
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch {
+  } catch (err) {
+    console.error("Ticket action failed", err);
     return NextResponse.json({ error: "Failed to process ticket action" }, { status: 500 });
   }
 }

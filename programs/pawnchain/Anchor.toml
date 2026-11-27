@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-pawnchain = "44tTkRHFef9s1TdG9KcH5jKSLQVoDrLUevA6gKr6HDcr"
+pawnchain = "GbnsM4PrEhhUR462vCDiCY5wrzj4MHyTSwRFieUhYn4G"
 
 [registry]
 url = "https://api.apr.dev"
