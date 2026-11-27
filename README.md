@@ -15,12 +15,40 @@ PawnChain connects people who need short-term cash with individual lenders.
 
 ## Architecture
 
+```mermaid
+flowchart LR
+  B[Borrower] -->|1. Appraisal| FC[Firecrawl Live Market]
+  FC -->|Median Price & 60% LTV| B
+  B -->|2. Voice Terms| EL[ElevenLabs TTS]
+  B -->|3. Create Ticket + HMAC Lock| SC[Solana Anchor Program]
+  C[Registered Custodian] -->|4. Physical Attestation| SC
+  L[Lender] -->|5. Fund SOL| SC
+  B -->|6. Atomic Repay & Release| SC
+  SC -->|Audit & State Sync| SB[(Supabase RLS)]
+```
+
 ```text
 apps/web/           Next.js 16 App Router (UI, API routes, wallet adapter)
-programs/pawnchain/ Anchor program
-supabase/           PostgreSQL migrations (RLS enabled)
-docs/               PRD, research and status notes
+programs/pawnchain/ Anchor program (escrow, custodian registry, CollateralLock)
+supabase/           PostgreSQL migrations (001_init.sql + 002_enable_rls.sql)
+docs/               PRD, ideation, resources, and status audit
 ```
+
+## Sponsor Integrations
+
+| Sponsor / Track | Role in PawnChain | Key Files |
+|---|---|---|
+| **Solana (Anchor)** | Atomic PDA escrow, on-chain Custodian Registry, `CollateralLock` anti-double-pledge PDA | [`programs/pawnchain/src/lib.rs`](programs/pawnchain/src/lib.rs), [`apps/web/src/lib/program.ts`](apps/web/src/lib/program.ts) |
+| **Firecrawl** | Live secondary-market price scraping to compute conservative median & 60% LTV cap | [`apps/web/src/lib/appraisal.ts`](apps/web/src/lib/appraisal.ts) |
+| **ElevenLabs** | Voice contract briefing reading principal, interest, tenor, and default rules before signing | [`apps/web/src/app/api/v1/voice/contract-briefing/route.ts`](apps/web/src/app/api/v1/voice/contract-briefing/route.ts) |
+| **Supabase** | PostgreSQL ledger & audit log persistence with Row-Level Security enabled | [`supabase/migrations/001_init.sql`](supabase/migrations/001_init.sql), [`supabase/migrations/002_enable_rls.sql`](supabase/migrations/002_enable_rls.sql) |
+
+## Judge Quick Test (60 Seconds)
+
+1. Open the app (Sandbox Mode is enabled by default — no wallet setup required).
+2. Click **Demo: iPhone 14 Pro** → **Run AI Market Appraisal** (see live Firecrawl pricing & 60% LTV cap) → **Listen to Contract Summary** (ElevenLabs voice).
+3. Click **Test Duplicate IMEI** → **Run AI Market Appraisal** to see the HMAC anti-fraud block (`409 POTENTIAL_DUPLICATE`).
+4. Submit a ticket as **Borrower**, switch role to **Custodian Hub** to verify check-in (`PENDING_VERIFICATION → OPEN`), switch to **Lender** to fund (`OPEN → ACTIVE`), and switch back to **Borrower** to repay (`ACTIVE → REPAID`).
 
 ## Quick start
 

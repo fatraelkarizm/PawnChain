@@ -15,20 +15,37 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "PawnChain — AI-Powered P2P Pawnshop & RWA Escrow on Solana",
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: "PawnChain — AI-Powered P2P Pawnshop & RWA Escrow on Solana",
+    template: "%s | PawnChain",
+  },
   description:
-    "P2P pawnshop on Solana with live Firecrawl market appraisal, HMAC anti-duplicate collateral checks, ElevenLabs voice briefing, and atomic escrow.",
+    "P2P pawnshop on Solana with live Firecrawl market appraisal, HMAC & on-chain CollateralLock anti-duplicate checks, ElevenLabs voice contract briefing, and atomic Anchor escrow.",
+  keywords: [
+    "Solana",
+    "DeFi",
+    "P2P Pawnshop",
+    "RWA",
+    "Anchor Escrow",
+    "Firecrawl",
+    "ElevenLabs",
+    "Dev3pack",
+  ],
   openGraph: {
     title: "PawnChain — AI-Powered P2P Pawnshop on Solana",
     description:
-      "Lock digital or custodian-verified RWA collateral on Solana and access instant P2P liquidity.",
+      "Lock digital or custodian-verified RWA collateral on Solana with live AI market appraisal and instant P2P liquidity.",
+    siteName: "PawnChain",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "PawnChain — Solana P2P Pawnshop",
-    description: "Live AI market appraisal + atomic Solana escrow.",
+    description: "Live Firecrawl AI appraisal + ElevenLabs voice briefing + atomic Anchor escrow.",
   },
 };
 
@@ -38,7 +55,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${jakarta.variable} ${plexMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${jakarta.variable} ${plexMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <SolanaProviders>{children}</SolanaProviders>
       </body>

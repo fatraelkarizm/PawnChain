@@ -1,0 +1,103 @@
+import { ImageResponse } from "next/og";
+
+export const alt = "PawnChain — AI-Powered P2P Pawnshop & RWA Escrow on Solana";
+export const size = { width: 1200, height: 630 };
+export const contentType = "image/png";
+
+export default function OpenGraphImage() {
+  return new ImageResponse(
+    (
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+          backgroundColor: "#f4f6f9",
+          padding: "56px 64px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+          borderTop: "10px solid #0b5d4b",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "10px",
+                backgroundColor: "#0b5d4b",
+                color: "#ffffff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "26px",
+                fontWeight: 800,
+              }}
+            >
+              P
+            </div>
+            <div style={{ fontSize: "30px", fontWeight: 800, color: "#0f172a" }}>PawnChain</div>
+          </div>
+          <div
+            style={{
+              fontSize: "18px",
+              fontWeight: 700,
+              color: "#0b5d4b",
+              backgroundColor: "#e8f5f2",
+              border: "1px solid #a7f3d0",
+              borderRadius: "999px",
+              padding: "8px 20px",
+            }}
+          >
+            Solana Devnet · Dev3pack Global Hackathon
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "18px", maxWidth: "960px" }}>
+          <div
+            style={{
+              fontSize: "56px",
+              fontWeight: 800,
+              lineHeight: 1.12,
+              color: "#0f172a",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            AI-Powered P2P Pawnshop &amp; RWA Escrow on Solana
+          </div>
+          <div style={{ fontSize: "24px", color: "#526071", lineHeight: 1.4 }}>
+            Live Firecrawl market appraisal, on-chain anti-duplicate CollateralLock, ElevenLabs
+            voice contract briefing, and atomic Anchor escrow.
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+          {[
+            "Solana Anchor Escrow",
+            "Firecrawl Live Pricing",
+            "ElevenLabs Voice",
+            "Supabase RLS Ledger",
+          ].map((label) => (
+            <div
+              key={label}
+              style={{
+                fontSize: "18px",
+                fontWeight: 600,
+                color: "#0f172a",
+                backgroundColor: "#ffffff",
+                border: "1px solid #dce1e8",
+                borderRadius: "8px",
+                padding: "10px 18px",
+              }}
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    { ...size }
+  );
+}
