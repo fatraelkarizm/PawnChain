@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, ShieldCheck } from "lucide-react";
@@ -6,6 +7,27 @@ import { formatIdrFromSol, lamportsToSol, shortenAddress } from "@/lib/security"
 import { TicketActionClient } from "@/components/TicketActionClient";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const ticket = await getTicketById(id);
+  if (!ticket) {
+    return { title: "Ticket Not Found — PawnChain" };
+  }
+  const principalSol = lamportsToSol(ticket.principalLamports).toFixed(2);
+  const title = `PawnChain #${ticket.publicTicketId} — ${ticket.asset.brand} ${ticket.asset.model} (${principalSol} SOL)`;
+  const description = `Need ${principalSol} SOL · ${(ticket.interestBps / 100).toFixed(1)}% interest · ${ticket.tenorDays} days · AI Median ${ticket.appraisal.medianBenchmarkSol} SOL (LTV ${Math.round(ticket.ltv * 100)}%)`;
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: "website" },
+    twitter: { card: "summary", title, description },
+  };
+}
 
 export default async function ShareableTicketPage({
   params,

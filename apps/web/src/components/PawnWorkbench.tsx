@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   Check,
   Copy,
@@ -19,7 +19,9 @@ import type {
   AssetType,
   PawnTicket,
 } from "@/types/pawn";
+import { COPY, type Lang } from "@/lib/i18n";
 import { explorerTxUrl } from "@/lib/solana";
+import { sendDevnetMemoTx, sendDevnetTransferTx } from "@/lib/walletTx";
 
 const WalletMultiButton = dynamic(
   async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
@@ -52,61 +54,87 @@ function shortAddr(addr: string | null): string {
   return `${addr.slice(0, 4)}...${addr.slice(-4)}`;
 }
 
-function StatusBadge({ status }: { status: PawnTicket["status"] }) {
-  const map: Record<PawnTicket["status"], { label: string; cls: string }> = {
-    PENDING_VERIFICATION: {
-      label: "Menunggu Cek Toko",
-      cls: "bg-amber-50 text-amber-800 border-amber-200",
-    },
-    OPEN: {
-      label: "Siap Didanai",
-      cls: "bg-emerald-50 text-emerald-800 border-emerald-200",
-    },
-    ACTIVE: {
-      label: "Pinjaman Berjalan",
-      cls: "bg-sky-50 text-sky-800 border-sky-200",
-    },
-    REPAID: {
-      label: "Lunas & Dilepas",
-      cls: "bg-slate-100 text-slate-700 border-slate-200",
-    },
-    DEFAULT_CLAIMED: {
-      label: "Gagal Bayar (Diklaim)",
-      cls: "bg-rose-50 text-rose-800 border-rose-200",
-    },
-    CANCELLED: {
-      label: "Dibatalkan",
-      cls: "bg-slate-100 text-slate-500 border-slate-200",
-    },
+function StatusBadge({ status, label }: { status: PawnTicket["status"]; label: string }) {
+  const clsMap: Record<PawnTicket["status"], string> = {
+    PENDING_VERIFICATION: "bg-amber-50 text-amber-800 border-amber-200",
+    OPEN: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    ACTIVE: "bg-sky-50 text-sky-800 border-sky-200",
+    REPAID: "bg-slate-100 text-slate-700 border-slate-200",
+    DEFAULT_CLAIMED: "bg-rose-50 text-rose-800 border-rose-200",
+    CANCELLED: "bg-slate-100 text-slate-500 border-slate-200",
   };
-  const cfg = map[status];
   return (
-    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${cfg.cls}`}>
-      {cfg.label}
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${clsMap[status]}`}>
+      {label}
     </span>
   );
 }
 
+function TicketProgress({ status, lang }: { status: PawnTicket["status"]; lang: Lang }) {
+  if (status === "CANCELLED" || status === "DEFAULT_CLAIMED") return null;
+  const stepIndex =
+    status === "PENDING_VERIFICATION"
+      ? 0
+      : status === "OPEN"
+        ? 1
+        : status === "ACTIVE"
+          ? 2
+          : 3;
+
+  const labels =
+    lang === "en"
+      ? ["Custody", "Open", "Active", "Repaid"]
+      : ["Cek Toko", "Tayang", "Didanai", "Lunas"];
+
+  return (
+    <div className="mt-3 grid grid-cols-4 gap-1.5">
+      {labels.map((lbl, idx) => {
+        const done = idx <= stepIndex;
+        return (
+          <div key={lbl} className="space-y-1">
+            <div
+              className={`h-1 rounded-full ${
+                done ? "bg-[var(--accent-vault)]" : "bg-[var(--border-ledger)]"
+              }`}
+            />
+            <span
+              className={`block text-[10px] font-medium ${
+                done ? "text-[var(--ink-primary)]" : "text-[var(--ink-muted)]"
+              }`}
+            >
+              {lbl}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[] }) {
-  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const { publicKey, connected } = wallet;
+
+  const [lang, setLang] = useState<Lang>("en");
+  const t = COPY[lang];
+
   const [sandboxEnabled, setSandboxEnabled] = useState(true);
   const [sandboxRole, setSandboxRole] = useState<SandboxRole>("borrower");
+  const isWalletMode = !sandboxEnabled && connected && Boolean(publicKey);
   const activeWallet =
-    connected && publicKey && !sandboxEnabled
-      ? publicKey.toBase58()
-      : SANDBOX_WALLETS[sandboxRole];
+    isWalletMode && publicKey ? publicKey.toBase58() : SANDBOX_WALLETS[sandboxRole];
 
   const [tickets, setTickets] = useState<PawnTicket[]>(initialTickets);
   const [filter, setFilter] = useState<MarketFilter>("ALL");
 
-  // Appraisal & Pawn Form State
   const [assetType, setAssetType] = useState<AssetType>("PHYSICAL");
   const [brand, setBrand] = useState("Apple");
-  const [model, setModel] = useState("iPhone 13 Pro 256GB");
-  const [condition, setCondition] = useState<AssetCondition>("Good");
+  const [model, setModel] = useState("iPhone 14 Pro 256GB");
+  const [condition, setCondition] = useState<AssetCondition>("Mint");
   const [serialNumber, setSerialNumber] = useState("358849102938471");
   const [mintAddress, setMintAddress] = useState("");
-  const [description, setDescription] = useState("Unit mulus terawat, kelengkapan fullset.");
+  const [description, setDescription] = useState("Clean condition with full original box.");
 
   const [appraisal, setAppraisal] = useState<AppraisalResult | null>(null);
   const [appraising, setAppraising] = useState(false);
@@ -118,7 +146,6 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceScript, setVoiceScript] = useState<string | null>(null);
-  const [voiceLang, setVoiceLang] = useState<"id" | "en">("id");
 
   const [submitting, setSubmitting] = useState(false);
   const [actionBusyId, setActionBusyId] = useState<string | null>(null);
@@ -156,7 +183,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       };
       if (!res.ok) {
         setAppraisal(null);
-        setAppraisalError(data.message || data.error || "Gagal menjalankan appraisal.");
+        setAppraisalError(data.message || data.error || "Appraisal failed.");
         return;
       }
       if (data.appraisal) {
@@ -164,7 +191,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         setPrincipalSol(String(Math.min(1.5, data.appraisal.suggestedMaxLoanSol)));
       }
     } catch {
-      setAppraisalError("Koneksi ke layanan appraisal terputus.");
+      setAppraisalError("Failed to connect to appraisal service.");
     } finally {
       setAppraising(false);
     }
@@ -181,7 +208,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           principalSol: Number(principalSol) || 1,
           interestPercent: Number(interestPct) || 5,
           tenorDays: Number(tenorDays) || 14,
-          language: voiceLang,
+          language: lang,
         }),
       });
       const data = (await res.json()) as {
@@ -196,7 +223,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       } else if (data.script && typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
         const utter = new SpeechSynthesisUtterance(data.script);
-        utter.lang = voiceLang === "en" ? "en-US" : "id-ID";
+        utter.lang = lang === "en" ? "en-US" : "id-ID";
         window.speechSynthesis.speak(utter);
       }
     } finally {
@@ -209,6 +236,15 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     setSubmitting(true);
     setFeedback(null);
     try {
+      let chainTxSignature: string | undefined;
+      if (isWalletMode) {
+        chainTxSignature = await sendDevnetMemoTx(
+          connection,
+          wallet,
+          `PawnChain:Create:${brand} ${model}:${principalSol}SOL`
+        );
+      }
+
       const res = await fetch("/api/v1/pawn-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -224,11 +260,12 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           principalSol: Number(principalSol),
           interestBps: Math.round(Number(interestPct) * 100),
           tenorDays: Number(tenorDays),
+          chainTxSignature,
         }),
       });
       const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
       if (!res.ok) {
-        setFeedback({ type: "err", text: data.error || "Gagal membuat tiket gadai." });
+        setFeedback({ type: "err", text: data.error || "Failed to create pawn ticket." });
         return;
       }
       if (data.ticket) {
@@ -236,47 +273,84 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           type: "ok",
           text:
             data.ticket.status === "PENDING_VERIFICATION"
-              ? `Tiket #${data.ticket.publicTicketId} dibuat! Pindah ke peran Custodian untuk verifikasi fisik.`
-              : `Tiket #${data.ticket.publicTicketId} terkunci di Escrow dan tayang di Marketplace.`,
+              ? `Ticket #${data.ticket.publicTicketId} created. Switch to Custodian Hub to verify physical check-in.`
+              : `Ticket #${data.ticket.publicTicketId} locked in escrow and listed on marketplace.`,
         });
         await refreshTickets();
       }
-    } catch {
-      setFeedback({ type: "err", text: "Gagal terhubung ke server." });
+    } catch (err) {
+      setFeedback({
+        type: "err",
+        text: err instanceof Error ? err.message : "Transaction cancelled or failed.",
+      });
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleTicketAction(
-    ticketId: string,
+    ticket: PawnTicket,
     action: "custody_attest" | "fund" | "repay" | "cancel"
   ) {
-    setActionBusyId(ticketId);
+    setActionBusyId(ticket.id);
     setFeedback(null);
     try {
-      const res = await fetch(`/api/v1/pawn-tickets/${ticketId}`, {
+      let txSignature: string | undefined;
+      if (isWalletMode) {
+        if (action === "fund") {
+          txSignature = await sendDevnetTransferTx(
+            connection,
+            wallet,
+            ticket.borrowerWallet,
+            ticket.principalLamports,
+            `PawnChain:Fund:#${ticket.publicTicketId}`
+          );
+        } else if (action === "repay" && ticket.lenderWallet) {
+          const interest = Math.floor((ticket.principalLamports * ticket.interestBps) / 10_000);
+          txSignature = await sendDevnetTransferTx(
+            connection,
+            wallet,
+            ticket.lenderWallet,
+            ticket.principalLamports + interest,
+            `PawnChain:Repay:#${ticket.publicTicketId}`
+          );
+        } else if (action === "custody_attest") {
+          txSignature = await sendDevnetMemoTx(
+            connection,
+            wallet,
+            `PawnChain:CustodyAttest:#${ticket.publicTicketId}`
+          );
+        }
+      }
+
+      const res = await fetch(`/api/v1/pawn-tickets/${ticket.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
           actorWallet: activeWallet,
+          txSignature,
           conditionReport:
-            action === "custody_attest" ? "Segel fisik & serial terverifikasi di Hub Jakarta" : undefined,
+            action === "custody_attest" ? "Physical seal & serial verified at Hub Jakarta" : undefined,
         }),
       });
       const data = (await res.json()) as { ticket?: PawnTicket; error?: string };
       if (!res.ok) {
-        setFeedback({ type: "err", text: data.error || "Aksi gagal dijalankan." });
+        setFeedback({ type: "err", text: data.error || "Action failed." });
         return;
       }
       if (data.ticket) {
         setFeedback({
           type: "ok",
-          text: `Tiket #${data.ticket.publicTicketId} diperbarui ke status ${data.ticket.status}.`,
+          text: `Ticket #${data.ticket.publicTicketId} updated to ${data.ticket.status}.`,
         });
         await refreshTickets();
       }
+    } catch (err) {
+      setFeedback({
+        type: "err",
+        text: err instanceof Error ? err.message : "Wallet transaction failed.",
+      });
     } finally {
       setActionBusyId(null);
     }
@@ -292,15 +366,14 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       setModel("iPhone 14 Pro 256GB");
       setCondition("Mint");
       setSerialNumber(`359011223344${Math.floor(100 + Math.random() * 899)}`);
-      setDescription("Mulus fullset box, bebas iCloud, siap dicek di Hub Jakarta.");
+      setDescription("Clean fullset box, verified IMEI ready for Hub check-in.");
     } else if (preset === "duplicate") {
       setAssetType("PHYSICAL");
       setBrand("Apple");
       setModel("iPhone 13 Pro 256GB");
       setCondition("Good");
-      // Matches seeded ticket #101 IMEI to demonstrate HMAC duplicate block
       setSerialNumber("356984110029384");
-      setDescription("Uji coba deteksi gadai ganda dengan IMEI yang sudah aktif.");
+      setDescription("Duplicate IMEI fraud test against active Ticket #101.");
     } else {
       setAssetType("DIGITAL");
       setBrand("Tensorians");
@@ -308,7 +381,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       setCondition("Mint");
       setSerialNumber("");
       setMintAddress("TensorianDevnetMint9999999999999999999999");
-      setDescription("NFT Solana siap dikunci langsung di PDA Escrow.");
+      setDescription("Solana NFT collateral locked directly in PDA escrow.");
     }
   }
 
@@ -320,7 +393,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
   }
 
   const visibleTickets =
-    filter === "ALL" ? tickets : tickets.filter((t) => t.status === filter);
+    filter === "ALL" ? tickets : tickets.filter((tItem) => tItem.status === filter);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -336,12 +409,30 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                 PawnChain
               </span>
               <span className="ml-2 rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--ink-muted)]">
-                Solana Devnet
+                {t.subtitle}
               </span>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Language Switcher EN / ID */}
+            <div className="flex rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-0.5">
+              {(["en", "id"] as const).map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => setLang(code)}
+                  className={`rounded px-2 py-1 text-xs font-semibold uppercase transition-colors ${
+                    lang === code
+                      ? "bg-[var(--ink-primary)] text-white"
+                      : "text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
+                  }`}
+                >
+                  {code}
+                </button>
+              ))}
+            </div>
+
             {/* Sandbox Mode Toggle & Role Switcher */}
             <div className="flex items-center gap-1.5 rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-1">
               <button
@@ -354,19 +445,19 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                 }`}
               >
                 <FlaskConical className="h-3.5 w-3.5" />
-                {sandboxEnabled ? "Sandbox Aktif" : "Mode Wallet"}
+                {sandboxEnabled ? t.sandboxOn : t.walletMode}
               </button>
 
               {sandboxEnabled && (
                 <select
-                  aria-label="Pilih peran demo"
+                  aria-label="Select demo role"
                   value={sandboxRole}
                   onChange={(e) => setSandboxRole(e.target.value as SandboxRole)}
                   className="rounded border-0 bg-transparent px-2 py-1 text-xs font-medium text-[var(--ink-primary)] focus:outline-none"
                 >
-                  <option value="borrower">Peran: Peminjam (Budi)</option>
-                  <option value="lender">Peran: Pendana (Siti)</option>
-                  <option value="custodian">Peran: Custodian Hub</option>
+                  <option value="borrower">{t.roleBorrower}</option>
+                  <option value="lender">{t.roleLender}</option>
+                  <option value="custodian">{t.roleCustodian}</option>
                 </select>
               )}
             </div>
@@ -379,22 +470,33 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       {/* Main Content */}
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
         {/* Compact Header Strip */}
-        <div className="mb-6 flex flex-col justify-between gap-4 border-b border-[var(--border-ledger)] pb-5 md:flex-row md:items-end">
+        <div className="mb-5 flex flex-col justify-between gap-4 pb-2 md:flex-row md:items-end">
           <div className="max-w-2xl">
             <h1 className="text-2xl font-bold tracking-tight text-[var(--ink-primary)] sm:text-3xl">
-              Gadai P2P berbasis taksiran harga pasar dan escrow Solana
+              {t.heroTitle}
             </h1>
             <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
-              Cek nilai pasar jaminan Anda secara transparan lewat Firecrawl, kunci aset di brankas
-              on-chain, dan terima dana langsung dari pendana tanpa perantara bank.
+              {t.heroDesc}
             </p>
           </div>
           <div className="flex flex-col items-start md:items-end">
-            <span className="text-xs text-[var(--ink-muted)]">Akun Aktif</span>
+            <span className="text-xs text-[var(--ink-muted)]">{t.activeAccount}</span>
             <span className="font-mono text-xs font-medium text-[var(--ink-primary)]">
-              {shortAddr(activeWallet)} ({sandboxEnabled ? sandboxRole : "Phantom/Solana"})
+              {shortAddr(activeWallet)} ({isWalletMode ? "Devnet Wallet" : sandboxRole})
             </span>
           </div>
+        </div>
+
+        {/* 4-Step Mechanism Strip */}
+        <div className="mb-6 grid grid-cols-2 gap-2 rounded-md border border-[var(--border-ledger)] bg-white p-3 sm:grid-cols-4">
+          {[t.step1, t.step2, t.step3, t.step4].map((stepText) => (
+            <div
+              key={stepText}
+              className="rounded bg-[var(--bg-canvas)] px-3 py-2 text-xs font-semibold text-[var(--ink-primary)]"
+            >
+              {stepText}
+            </div>
+          ))}
         </div>
 
         {feedback && (
@@ -412,51 +514,49 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
               onClick={() => setFeedback(null)}
               className="ml-4 text-xs font-semibold underline"
             >
-              Tutup
+              OK
             </button>
           </div>
         )}
 
         {/* Asymmetric 2-Column Ledger Workbench */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-          {/* LEFT: Appraisal & Pawn Creation Desk (5 cols) */}
+          {/* LEFT: Appraisal & Pawn Creation Desk */}
           <section className="lg:col-span-5">
             <div className="rounded-lg border border-[var(--border-ledger)] bg-[var(--bg-surface)]">
               <div className="border-b border-[var(--border-ledger)] px-5 py-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-base font-bold text-[var(--ink-primary)]">
-                    Meja Taksiran & Pengajuan Gadai
+                    {t.deskTitle}
                   </h2>
-                  <span className="font-mono text-xs text-[var(--ink-muted)]">LTV Maks 60%</span>
+                  <span className="font-mono text-xs text-[var(--ink-muted)]">{t.maxLtv}</span>
                 </div>
-                {/* Quick Demo Presets */}
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   <button
                     type="button"
                     onClick={() => applyPreset("iphone")}
                     className="rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-2.5 py-1 text-xs font-medium text-[var(--ink-primary)] hover:bg-[var(--bg-muted)]"
                   >
-                    Demo: iPhone 14 Pro
+                    {t.presetIphone}
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset("nft")}
                     className="rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-2.5 py-1 text-xs font-medium text-[var(--ink-primary)] hover:bg-[var(--bg-muted)]"
                   >
-                    Demo: NFT Digital
+                    {t.presetNft}
                   </button>
                   <button
                     type="button"
                     onClick={() => applyPreset("duplicate")}
                     className="rounded border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
                   >
-                    Tes Blokir IMEI Ganda
+                    {t.presetDup}
                   </button>
                 </div>
               </div>
 
               <form onSubmit={handleCreateTicket} className="space-y-4 p-5">
-                {/* Mode Selector */}
                 <div className="grid grid-cols-2 gap-2 rounded-md bg-[var(--bg-canvas)] p-1">
                   <button
                     type="button"
@@ -470,7 +570,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                         : "text-[var(--ink-muted)]"
                     }`}
                   >
-                    Barang Fisik (RWA)
+                    {t.modePhysical}
                   </button>
                   <button
                     type="button"
@@ -484,14 +584,14 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                         : "text-[var(--ink-muted)]"
                     }`}
                   >
-                    Aset Digital (NFT)
+                    {t.modeDigital}
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                      Merek / Koleksi
+                      {t.labelBrand}
                     </label>
                     <input
                       type="text"
@@ -503,7 +603,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                      Model / Nama Aset
+                      {t.labelModel}
                     </label>
                     <input
                       type="text"
@@ -518,42 +618,41 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                      Kondisi
+                      {t.labelCondition}
                     </label>
                     <select
                       value={condition}
                       onChange={(e) => setCondition(e.target.value as AssetCondition)}
                       className="w-full rounded border border-[var(--border-ledger)] bg-white px-3 py-2 text-sm focus:border-[var(--accent-vault)] focus:outline-none"
                     >
-                      <option value="Mint">Mint (Mulus 100%)</option>
-                      <option value="Good">Good (Wajar 90%)</option>
-                      <option value="Fair">Fair (Ada Minus 70%)</option>
+                      <option value="Mint">Mint (100%)</option>
+                      <option value="Good">Good (90%)</option>
+                      <option value="Fair">Fair (70%)</option>
                     </select>
                   </div>
 
                   {assetType === "PHYSICAL" ? (
                     <div>
                       <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                        Serial / IMEI (Di-hash HMAC)
+                        {t.labelSerial}
                       </label>
                       <input
                         type="text"
                         value={serialNumber}
                         onChange={(e) => setSerialNumber(e.target.value)}
-                        placeholder="Contoh: 356984..."
                         className="w-full rounded border border-[var(--border-ledger)] px-3 py-2 font-mono text-xs focus:border-[var(--accent-vault)] focus:outline-none"
                       />
                     </div>
                   ) : (
                     <div>
                       <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                        Mint Address (Devnet)
+                        {t.labelMint}
                       </label>
                       <input
                         type="text"
                         value={mintAddress}
                         onChange={(e) => setMintAddress(e.target.value)}
-                        placeholder="Opsional (otomatis demo)"
+                        placeholder="Auto demo mint"
                         className="w-full rounded border border-[var(--border-ledger)] px-3 py-2 font-mono text-xs focus:border-[var(--accent-vault)] focus:outline-none"
                       />
                     </div>
@@ -562,7 +661,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                    Catatan Kondisi Aset
+                    {t.labelNotes}
                   </label>
                   <input
                     type="text"
@@ -578,10 +677,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   onClick={handleRunAppraisal}
                   className="w-full rounded-md border border-[var(--ink-primary)] bg-[var(--ink-primary)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
                 >
-                  {appraising ? "Mengecek harga pasar Firecrawl..." : "Hitung Taksiran AI"}
+                  {appraising ? t.btnAppraising : t.btnAppraise}
                 </button>
 
-                {/* Duplicate Block or Error */}
                 {appraisalError && (
                   <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-xs text-rose-900">
                     <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-rose-700" />
@@ -589,22 +687,21 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                 )}
 
-                {/* Appraisal Valuation Sheet */}
                 {appraisal && (
                   <div className="space-y-3 rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-4">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-[var(--ink-primary)]">
-                        Hasil Taksiran ({appraisal.modelVersion})
+                        {t.appraisalTitle} ({appraisal.modelVersion})
                       </span>
                       <span className="rounded bg-white px-2 py-0.5 font-mono text-xs font-semibold text-[var(--accent-vault)]">
-                        Skor Risiko: {appraisal.riskLevel} ({appraisal.riskScore}/100)
+                        {t.riskScore}: {appraisal.riskLevel} ({appraisal.riskScore}/100)
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 border-y border-[var(--border-ledger)] py-2.5">
                       <div>
                         <span className="block text-[11px] text-[var(--ink-muted)]">
-                          Nilai Acuan Median
+                          {t.medianVal}
                         </span>
                         <span className="font-mono text-sm font-bold tabular-nums text-[var(--ink-primary)]">
                           {appraisal.medianBenchmarkSol} SOL
@@ -615,21 +712,24 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                       </div>
                       <div>
                         <span className="block text-[11px] text-[var(--ink-muted)]">
-                          Batas Pinjaman ({Math.round(appraisal.suggestedLtv * 100)}% LTV)
+                          {t.maxLoan} ({Math.round(appraisal.suggestedLtv * 100)}% LTV)
                         </span>
                         <span className="font-mono text-sm font-bold tabular-nums text-[var(--accent-vault)]">
-                          Maks {appraisal.suggestedMaxLoanSol} SOL
+                          Max {appraisal.suggestedMaxLoanSol} SOL
                         </span>
                         <span className="block font-mono text-[11px] text-[var(--ink-muted)]">
-                          Confidence {Math.round(appraisal.confidenceScore * 100)}%
+                          {t.confidence} {Math.round(appraisal.confidenceScore * 100)}%
                         </span>
                       </div>
                     </div>
 
-                    {/* Firecrawl Evidence Links */}
                     <div>
                       <span className="mb-1.5 block text-[11px] font-semibold text-[var(--ink-muted)]">
-                        Sumber Pembanding Harga ({appraisal.comparableReferences[0]?.sourceType === "firecrawl_live" ? "Live Firecrawl" : "Benchmark Ter-cache"})
+                        {t.priceSources} (
+                        {appraisal.comparableReferences[0]?.sourceType === "firecrawl_live"
+                          ? "Live Firecrawl"
+                          : "Cached Benchmark"}
+                        )
                       </span>
                       <ul className="space-y-1">
                         {appraisal.comparableReferences.map((ref, i) => (
@@ -653,11 +753,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                 )}
 
-                {/* Loan Terms */}
                 <div className="grid grid-cols-3 gap-2.5 pt-1">
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                      Pinjaman (SOL)
+                      {t.labelLoan}
                     </label>
                     <input
                       type="number"
@@ -671,7 +770,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                      Bunga (%)
+                      {t.labelInterest}
                     </label>
                     <input
                       type="number"
@@ -686,7 +785,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                   <div>
                     <label className="mb-1 block text-xs font-medium text-[var(--ink-muted)]">
-                      Tenor (Hari)
+                      {t.labelTenor}
                     </label>
                     <input
                       type="number"
@@ -700,39 +799,16 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   </div>
                 </div>
 
-                {/* ElevenLabs Voice Contract Briefing */}
                 <div className="rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
-                      disabled={voiceLoading}
-                      onClick={handleVoiceBriefing}
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--accent-vault)] hover:underline"
-                    >
-                      <Volume2 className="h-4 w-4" />
-                      {voiceLoading ? "Membuat audio..." : "Dengar Ringkasan Kontrak (ElevenLabs)"}
-                    </button>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setVoiceLang("id")}
-                        className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
-                          voiceLang === "id" ? "bg-[var(--ink-primary)] text-white" : "text-[var(--ink-muted)]"
-                        }`}
-                      >
-                        ID
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setVoiceLang("en")}
-                        className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${
-                          voiceLang === "en" ? "bg-[var(--ink-primary)] text-white" : "text-[var(--ink-muted)]"
-                        }`}
-                      >
-                        EN
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    disabled={voiceLoading}
+                    onClick={handleVoiceBriefing}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--accent-vault)] hover:underline"
+                  >
+                    <Volume2 className="h-4 w-4" />
+                    {voiceLoading ? t.btnVoiceBusy : t.btnVoice}
+                  </button>
                   {voiceScript && (
                     <p className="mt-2 text-xs leading-relaxed text-[var(--ink-muted)]">
                       {voiceScript}
@@ -746,37 +822,36 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   className="w-full rounded-md bg-[var(--accent-vault)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
                 >
                   {submitting
-                    ? "Menyimpan ke Brankas Solana..."
+                    ? t.btnCreating
                     : assetType === "PHYSICAL"
-                      ? "Ajukan Tiket Gadai Fisik"
-                      : "Kunci NFT & Terbitkan Tiket"}
+                      ? t.btnCreatePhysical
+                      : t.btnCreateDigital}
                 </button>
               </form>
             </div>
           </section>
 
-          {/* RIGHT: Vault Ledger & Marketplace (7 cols) */}
+          {/* RIGHT: Vault Ledger & Marketplace */}
           <section className="lg:col-span-7">
             <div className="rounded-lg border border-[var(--border-ledger)] bg-[var(--bg-surface)]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-ledger)] px-5 py-4">
                 <div>
                   <h2 className="text-base font-bold text-[var(--ink-primary)]">
-                    Buku Besar Tiket & Marketplace P2P
+                    {t.ledgerTitle}
                   </h2>
                   <p className="text-xs text-[var(--ink-muted)]">
-                    {visibleTickets.length} tiket tercatat — kelola pendanaan, verifikasi toko, dan
-                    pelunasan.
+                    {visibleTickets.length} {t.ledgerCount}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-1">
                   {(
                     [
-                      ["ALL", "Semua"],
-                      ["OPEN", "Siap Didanai"],
-                      ["PENDING_VERIFICATION", "Cek Toko"],
-                      ["ACTIVE", "Berjalan"],
-                      ["REPAID", "Lunas"],
+                      ["ALL", t.filterAll],
+                      ["OPEN", t.filterOpen],
+                      ["PENDING_VERIFICATION", t.filterCheck],
+                      ["ACTIVE", t.filterActive],
+                      ["REPAID", t.filterRepaid],
                     ] as const
                   ).map(([key, label]) => (
                     <button
@@ -798,7 +873,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
               <div className="divide-y divide-[var(--border-ledger)]">
                 {visibleTickets.length === 0 ? (
                   <div className="p-10 text-center text-sm text-[var(--ink-muted)]">
-                    Belum ada tiket gadai pada filter ini.
+                    {t.emptyTickets}
                   </div>
                 ) : (
                   visibleTickets.map((ticket) => {
@@ -823,7 +898,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                               <h3 className="text-base font-bold text-[var(--ink-primary)]">
                                 {ticket.asset.brand} {ticket.asset.model}
                               </h3>
-                              <StatusBadge status={ticket.status} />
+                              <StatusBadge
+                                status={ticket.status}
+                                label={t.status[ticket.status]}
+                              />
                             </div>
                             <p className="mt-1 text-xs text-[var(--ink-muted)]">
                               {ticket.asset.description}
@@ -839,12 +917,12 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                               {copiedId === String(ticket.publicTicketId) ? (
                                 <>
                                   <Check className="h-3.5 w-3.5 text-emerald-700" />
-                                  Disalin
+                                  {t.copied}
                                 </>
                               ) : (
                                 <>
                                   <Copy className="h-3.5 w-3.5" />
-                                  Salin Link
+                                  {t.copyLink}
                                 </>
                               )}
                             </button>
@@ -852,16 +930,17 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                               href={`/ticket/${ticket.publicTicketId}`}
                               className="rounded border border-[var(--border-ledger)] px-2.5 py-1 text-xs font-medium text-[var(--accent-vault)] hover:bg-[var(--bg-canvas)]"
                             >
-                              Detail
+                              {t.detail}
                             </Link>
                           </div>
                         </div>
 
-                        {/* Key Financial Numbers */}
-                        <div className="mt-4 grid grid-cols-2 gap-3 rounded-md bg-[var(--bg-canvas)] p-3 sm:grid-cols-4">
+                        <TicketProgress status={ticket.status} lang={lang} />
+
+                        <div className="mt-3.5 grid grid-cols-2 gap-3 rounded-md bg-[var(--bg-canvas)] p-3 sm:grid-cols-4">
                           <div>
                             <span className="block text-[11px] text-[var(--ink-muted)]">
-                              Dana Dibutuhkan
+                              {t.loanNeeded}
                             </span>
                             <span className="font-mono text-sm font-bold tabular-nums">
                               {principalSolVal.toFixed(2)} SOL
@@ -869,15 +948,15 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           </div>
                           <div>
                             <span className="block text-[11px] text-[var(--ink-muted)]">
-                              Bunga / Tenor
+                              {t.rateTenor}
                             </span>
                             <span className="font-mono text-sm font-semibold tabular-nums">
-                              {interestPctVal}% / {ticket.tenorDays} hari
+                              {interestPctVal}% / {ticket.tenorDays}d
                             </span>
                           </div>
                           <div>
                             <span className="block text-[11px] text-[var(--ink-muted)]">
-                              Total Tebus
+                              {t.totalRepay}
                             </span>
                             <span className="font-mono text-sm font-semibold tabular-nums">
                               {totalDueSol} SOL
@@ -885,7 +964,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           </div>
                           <div>
                             <span className="block text-[11px] text-[var(--ink-muted)]">
-                              Taksiran AI & LTV
+                              {t.aiLtv}
                             </span>
                             <span className="font-mono text-sm font-semibold tabular-nums text-[var(--accent-vault)]">
                               {ticket.appraisal.medianBenchmarkSol} SOL ({Math.round(ticket.ltv * 100)}%)
@@ -893,23 +972,22 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           </div>
                         </div>
 
-                        {/* Custody & Chain Metadata */}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--ink-muted)]">
                           <div className="flex flex-wrap items-center gap-3">
                             <span className="inline-flex items-center gap-1">
                               <ShieldCheck className="h-3.5 w-3.5 text-[var(--accent-vault)]" />
                               {ticket.asset.assetType === "DIGITAL"
-                                ? "Escrow PDA On-Chain"
+                                ? t.escrowOnChain
                                 : ticket.custodyAttestationHash
-                                  ? "Custodian Terverifikasi"
-                                  : "Belum Dicek Custodian"}
+                                  ? t.custodianVerified
+                                  : t.custodianPending}
                             </span>
                             <span className="font-mono">
-                              Peminjam: {shortAddr(ticket.borrowerWallet)}
+                              {t.borrower}: {shortAddr(ticket.borrowerWallet)}
                             </span>
                             {ticket.lenderWallet && (
                               <span className="font-mono">
-                                Pendana: {shortAddr(ticket.lenderWallet)}
+                                {t.lender}: {shortAddr(ticket.lenderWallet)}
                               </span>
                             )}
                           </div>
@@ -931,16 +1009,15 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           )}
                         </div>
 
-                        {/* Action Bar */}
                         <div className="mt-3.5 flex flex-wrap items-center gap-2">
                           {ticket.status === "PENDING_VERIFICATION" && (
                             <button
                               type="button"
                               disabled={actionBusyId === ticket.id}
-                              onClick={() => handleTicketAction(ticket.id, "custody_attest")}
+                              onClick={() => handleTicketAction(ticket, "custody_attest")}
                               className="rounded bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
                             >
-                              Verifikasi & Terima Barang (Custodian)
+                              {t.btnAttest}
                             </button>
                           )}
 
@@ -948,10 +1025,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                             <button
                               type="button"
                               disabled={actionBusyId === ticket.id}
-                              onClick={() => handleTicketAction(ticket.id, "fund")}
+                              onClick={() => handleTicketAction(ticket, "fund")}
                               className="rounded bg-[var(--accent-vault)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
                             >
-                              Danai Sekarang ({principalSolVal.toFixed(2)} SOL)
+                              {t.btnFund} ({principalSolVal.toFixed(2)} SOL)
                             </button>
                           )}
 
@@ -959,10 +1036,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                             <button
                               type="button"
                               disabled={actionBusyId === ticket.id}
-                              onClick={() => handleTicketAction(ticket.id, "repay")}
+                              onClick={() => handleTicketAction(ticket, "repay")}
                               className="rounded bg-[var(--ink-primary)] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                             >
-                              Lunasi & Ambil Jaminan ({totalDueSol} SOL)
+                              {t.btnRepay} ({totalDueSol} SOL)
                             </button>
                           )}
 
@@ -971,10 +1048,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                               <button
                                 type="button"
                                 disabled={actionBusyId === ticket.id}
-                                onClick={() => handleTicketAction(ticket.id, "cancel")}
+                                onClick={() => handleTicketAction(ticket, "cancel")}
                                 className="rounded border border-[var(--border-ledger)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
                               >
-                                Batalkan Tiket
+                                {t.btnCancel}
                               </button>
                             )}
                         </div>
@@ -987,6 +1064,19 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           </section>
         </div>
       </main>
+
+      {/* Clean Infrastructure Footer */}
+      <footer className="border-t border-[var(--border-ledger)] bg-white py-4">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 text-xs text-[var(--ink-muted)] sm:px-6">
+          <span>PawnChain — Dev3pack Global Hackathon (Solana Devnet)</span>
+          <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
+            <span>Anchor Escrow</span>
+            <span>Firecrawl Appraisal</span>
+            <span>ElevenLabs Voice</span>
+            <span>Supabase Ledger</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

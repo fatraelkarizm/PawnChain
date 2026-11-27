@@ -16,9 +16,20 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PawnChain — Gadai P2P & Taksiran AI di Solana",
+  title: "PawnChain — AI-Powered P2P Pawnshop & RWA Escrow on Solana",
   description:
-    "Platform gadai P2P dengan taksiran harga pasar real-time, deteksi duplikat aset, dan escrow otomatis di Solana Devnet.",
+    "P2P pawnshop on Solana with live Firecrawl market appraisal, HMAC anti-duplicate collateral checks, ElevenLabs voice briefing, and atomic escrow.",
+  openGraph: {
+    title: "PawnChain — AI-Powered P2P Pawnshop on Solana",
+    description:
+      "Lock digital or custodian-verified RWA collateral on Solana and access instant P2P liquidity.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PawnChain — Solana P2P Pawnshop",
+    description: "Live AI market appraisal + atomic Solana escrow.",
+  },
 };
 
 export default function RootLayout({

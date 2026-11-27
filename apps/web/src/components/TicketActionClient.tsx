@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import type { PawnTicket } from "@/types/pawn";
 import { lamportsToSol } from "@/lib/security";
+import { sendDevnetMemoTx, sendDevnetTransferTx } from "@/lib/walletTx";
 
 const LENDER_DEMO_WALLET = "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R";
 const CUSTODIAN_DEMO_WALLET = "CustodianHubJakartaVerified11111111111111111";
 
 export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
   const router = useRouter();
-  const { publicKey, connected } = useWallet();
+  const { connection } = useConnection();
+  const wallet = useWallet();
+  const { publicKey, connected } = wallet;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -22,8 +25,9 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
     setBusy(true);
     setMessage(null);
 
+    const isWallet = connected && Boolean(publicKey);
     const actorWallet =
-      connected && publicKey
+      isWallet && publicKey
         ? publicKey.toBase58()
         : action === "fund"
           ? LENDER_DEMO_WALLET
@@ -32,18 +36,48 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             : ticket.borrowerWallet;
 
     try {
+      let txSignature: string | undefined;
+      if (isWallet) {
+        if (action === "fund") {
+          txSignature = await sendDevnetTransferTx(
+            connection,
+            wallet,
+            ticket.borrowerWallet,
+            ticket.principalLamports,
+            `PawnChain:Fund:#${ticket.publicTicketId}`
+          );
+        } else if (action === "repay" && ticket.lenderWallet) {
+          const interest = Math.floor((ticket.principalLamports * ticket.interestBps) / 10_000);
+          txSignature = await sendDevnetTransferTx(
+            connection,
+            wallet,
+            ticket.lenderWallet,
+            ticket.principalLamports + interest,
+            `PawnChain:Repay:#${ticket.publicTicketId}`
+          );
+        } else if (action === "custody_attest") {
+          txSignature = await sendDevnetMemoTx(
+            connection,
+            wallet,
+            `PawnChain:CustodyAttest:#${ticket.publicTicketId}`
+          );
+        }
+      }
+
       const res = await fetch(`/api/v1/pawn-tickets/${ticket.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, actorWallet }),
+        body: JSON.stringify({ action, actorWallet, txSignature }),
       });
       const data = (await res.json()) as { error?: string; ticket?: PawnTicket };
       if (!res.ok) {
-        setMessage(data.error || "Aksi gagal.");
+        setMessage(data.error || "Action failed.");
         return;
       }
-      setMessage(`Berhasil! Status tiket sekarang: ${data.ticket?.status}`);
+      setMessage(`Updated! Ticket status is now: ${data.ticket?.status}`);
       router.refresh();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Wallet transaction failed.");
     } finally {
       setBusy(false);
     }
@@ -65,7 +99,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("custody_attest")}
             className="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
           >
-            Verifikasi Barang Fisik (Custodian)
+            Verify Physical Asset (Custodian)
           </button>
         )}
 
@@ -76,7 +110,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("fund")}
             className="rounded bg-[var(--accent-vault)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
           >
-            Danai Sekarang ({principalSol.toFixed(2)} SOL)
+            Fund Now ({principalSol.toFixed(2)} SOL)
           </button>
         )}
 
@@ -87,7 +121,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("repay")}
             className="rounded bg-[var(--ink-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
           >
-            Lunasi & Ambil Jaminan ({totalDue} SOL)
+            Repay & Reclaim ({totalDue} SOL)
           </button>
         )}
       </div>
