@@ -182,8 +182,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         message?: string;
       };
       if (!res.ok) {
+        const msg = data.message || data.error || "Appraisal failed.";
         setAppraisal(null);
-        setAppraisalError(data.message || data.error || "Appraisal failed.");
+        setAppraisalError(msg);
+        setFeedback({ type: "err", text: msg });
         return;
       }
       if (data.appraisal) {
@@ -191,7 +193,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         setPrincipalSol(String(Math.min(1.5, data.appraisal.suggestedMaxLoanSol)));
       }
     } catch {
-      setAppraisalError("Failed to connect to appraisal service.");
+      const msg = "Failed to connect to appraisal service.";
+      setAppraisalError(msg);
+      setFeedback({ type: "err", text: msg });
     } finally {
       setAppraising(false);
     }
@@ -501,21 +505,55 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
 
         {feedback && (
           <div
-            role="status"
-            className={`mb-5 flex items-center justify-between rounded-md border px-4 py-3 text-sm ${
-              feedback.type === "ok"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                : "border-rose-200 bg-rose-50 text-rose-900"
-            }`}
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setFeedback(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 backdrop-blur-[2px]"
           >
-            <span>{feedback.text}</span>
-            <button
-              type="button"
-              onClick={() => setFeedback(null)}
-              className="ml-4 text-xs font-semibold underline"
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-lg border border-[var(--border-ledger)] bg-white p-6 shadow-xl"
             >
-              OK
-            </button>
+              <div className="flex items-start gap-3">
+                {feedback.type === "ok" ? (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                ) : (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-700">
+                    <ShieldAlert className="h-5 w-5" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-[var(--ink-primary)]">
+                    {feedback.type === "ok"
+                      ? lang === "en"
+                        ? "Transaction Confirmed"
+                        : "Berhasil Diproses"
+                      : lang === "en"
+                        ? "Action Blocked / Alert"
+                        : "Peringatan Sistem"}
+                  </h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-[var(--ink-muted)]">
+                    {feedback.text}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setFeedback(null)}
+                  className={`rounded-md px-4 py-2 text-xs font-semibold text-white ${
+                    feedback.type === "ok"
+                      ? "bg-[var(--accent-vault)] hover:bg-[var(--accent-vault-hover)]"
+                      : "bg-rose-700 hover:bg-rose-800"
+                  }`}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
