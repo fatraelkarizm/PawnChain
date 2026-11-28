@@ -2,7 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import type { PawnTicket } from "@/types/pawn";
+import type { PawnTicket, TicketMode } from "@/types/pawn";
+import { SAMPLE_SOURCE } from "./appraisal";
+import { SANDBOX_WALLETS } from "./sandbox";
 import { hashAssetIdentifier, SOL_PRICE_IDR_ESTIMATE, solToLamports } from "./security";
 
 const LOCAL_STORE_PATH = path.join(process.cwd(), ".pawnchain-local-store.json");
@@ -23,6 +25,8 @@ function buildSeedTickets(): PawnTicket[] {
     {
       id: "ticket-101",
       publicTicketId: 101,
+      mode: "sandbox",
+      custodianWallet: SANDBOX_WALLETS.custodian,
       borrowerWallet: "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
       lenderWallet: null,
       principalLamports: solToLamports(1.8),
@@ -30,8 +34,8 @@ function buildSeedTickets(): PawnTicket[] {
       tenorDays: 14,
       ltv: 0.56,
       dueAt: null,
-      chainTicketPubkey: "PawnTicket101DevnetPDA1111111111111111111111",
-      chainTxSignature: "DemoSeedTx101SolanaDevnetEscrowVerified",
+      chainTicketPubkey: null,
+      chainTxSignature: null,
       repayTxSignature: null,
       custodyAttestationHash: hashAssetIdentifier("CUSTODY-JKT-01-IPHONE13PRO"),
       status: "OPEN",
@@ -44,7 +48,7 @@ function buildSeedTickets(): PawnTicket[] {
         category: "Electronics",
         brand: "Apple",
         model: "iPhone 13 Pro 256GB",
-        description: "Fullset box, battery health 89%, tanpa retak. Sudah dicek fisik di Hub Jakarta.",
+        description: "Original box included, 89% battery health, no screen cracks. Verified at custody hub.",
         serialHash: hashAssetIdentifier("356984110029384"),
         mintAddress: "RWA13ProMintDevnet111111111111111111111111",
         condition: "Good",
@@ -65,38 +69,40 @@ function buildSeedTickets(): PawnTicket[] {
         riskLevel: "LOW",
         confidenceScore: 0.89,
         riskFactors: [
-          "IMEI lolos cek duplikasi (HMAC registry bersih)",
-          "Custody Hub Jakarta sudah menandatangani attestation",
+          "IMEI passed duplicate collateral check (HMAC registry clear)",
+          "Custody Hub signed physical verification attestation",
         ],
         missingInformation: [],
         comparableReferences: [
           {
-            title: "iPhone 13 Pro 256GB Mulus Ex iBox",
-            source: "Tokopedia (Cached Benchmark)",
-            url: "https://www.tokopedia.com",
+            title: "Sample listing 1",
+            source: SAMPLE_SOURCE,
+            url: "",
             priceIdr: 8_000_000,
             priceSol: Number((8_000_000 / SOL_PRICE_IDR_ESTIMATE).toFixed(3)),
             fetchedAt: now.toISOString(),
-            sourceType: "cached_benchmark",
+            sourceType: "sample_data",
           },
           {
-            title: "iPhone 13 Pro 256GB Second Fullset",
-            source: "OLX Indonesia (Cached Benchmark)",
-            url: "https://www.olx.co.id",
+            title: "Sample listing 2",
+            source: SAMPLE_SOURCE,
+            url: "",
             priceIdr: 7_750_000,
             priceSol: Number((7_750_000 / SOL_PRICE_IDR_ESTIMATE).toFixed(3)),
             fetchedAt: now.toISOString(),
-            sourceType: "cached_benchmark",
+            sourceType: "sample_data",
           },
         ],
         humanReviewRequired: false,
-        modelVersion: "pawnchain-benchmark-v1",
+        modelVersion: "sample-data",
         createdAt: now.toISOString(),
       },
     },
     {
       id: "ticket-102",
       publicTicketId: 102,
+      mode: "sandbox",
+      custodianWallet: null,
       borrowerWallet: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
       lenderWallet: null,
       principalLamports: solToLamports(1.5),
@@ -104,8 +110,8 @@ function buildSeedTickets(): PawnTicket[] {
       tenorDays: 7,
       ltv: 0.44,
       dueAt: null,
-      chainTicketPubkey: "PawnTicket102DevnetPDA2222222222222222222222",
-      chainTxSignature: "DemoSeedTx102SolanaDevnetEscrowVerified",
+      chainTicketPubkey: null,
+      chainTxSignature: null,
       repayTxSignature: null,
       custodyAttestationHash: null,
       status: "OPEN",
@@ -118,7 +124,7 @@ function buildSeedTickets(): PawnTicket[] {
         category: "NFT",
         brand: "Mad Lads",
         model: "Mad Lads #4821 (Devnet)",
-        description: "Solana NFT collateral locked directly inside PDA escrow vault.",
+        description: "Verified Solana NFT collateral locked in simulated sandbox escrow.",
         serialHash: null,
         mintAddress: "MadLadsDemoMintDevnet2222222222222222222222",
         condition: "Mint",
@@ -138,68 +144,75 @@ function buildSeedTickets(): PawnTicket[] {
         riskScore: 18,
         riskLevel: "LOW",
         confidenceScore: 0.92,
-        riskFactors: ["Aset digital dikunci 100% on-chain di PDA Escrow"],
+        riskFactors: ["Digital collateral locked in Solana PDA escrow"],
         missingInformation: [],
         comparableReferences: [
           {
-            title: "Mad Lads Collection Floor",
-            source: "Magic Eden (Cached Floor)",
-            url: "https://magiceden.io",
+            title: "Sample floor price",
+            source: SAMPLE_SOURCE,
+            url: "",
             priceIdr: Math.round(3.4 * SOL_PRICE_IDR_ESTIMATE),
             priceSol: 3.4,
             fetchedAt: now.toISOString(),
-            sourceType: "cached_benchmark",
+            sourceType: "sample_data",
           },
         ],
         humanReviewRequired: false,
-        modelVersion: "pawnchain-benchmark-v1",
+        modelVersion: "sample-data",
         createdAt: now.toISOString(),
       },
     },
   ];
 }
 
+// Fallback when the filesystem is read-only (serverless without Supabase).
+// Data then lives only as long as the server instance does.
+let memoryTickets: PawnTicket[] | null = null;
+
 function readLocalTickets(): PawnTicket[] {
+  if (memoryTickets) return memoryTickets;
   try {
-    if (!fs.existsSync(LOCAL_STORE_PATH)) {
-      const seed = buildSeedTickets();
-      fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(seed, null, 2), "utf-8");
-      return seed;
+    const parsed = JSON.parse(fs.readFileSync(LOCAL_STORE_PATH, "utf-8")) as PawnTicket[];
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((t) => ({ ...t, mode: t.mode ?? "sandbox" }));
     }
-    const raw = fs.readFileSync(LOCAL_STORE_PATH, "utf-8");
-    const parsed = JSON.parse(raw) as PawnTicket[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : buildSeedTickets();
   } catch {
-    return buildSeedTickets();
+    // Missing or unreadable store: start from the seed data.
   }
+  return buildSeedTickets();
 }
 
 function writeLocalTickets(tickets: PawnTicket[]): void {
   try {
     fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(tickets, null, 2), "utf-8");
-  } catch {
-    // Ignore read-only serverless fs errors gracefully
+    memoryTickets = null;
+  } catch (err) {
+    console.warn("Local ticket store is not writable; keeping tickets in memory.", err);
+    memoryTickets = tickets;
   }
 }
 
 export async function listTickets(): Promise<PawnTicket[]> {
   const sb = getSupabaseAdmin();
-  if (sb) {
-    const { data } = await sb
-      .from("audit_logs")
-      .select("after_json")
-      .eq("entity_type", "ticket_snapshot")
-      .order("created_at", { ascending: false });
-    if (data && data.length > 0) {
-      const map = new Map<string, PawnTicket>();
-      for (const row of data) {
-        const t = row.after_json as PawnTicket | null;
-        if (t && !map.has(t.id)) map.set(t.id, t);
-      }
-      if (map.size > 0) return Array.from(map.values());
-    }
+  if (!sb) return readLocalTickets();
+
+  const { data, error } = await sb
+    .from("audit_logs")
+    .select("after_json")
+    .eq("entity_type", "ticket_snapshot")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Supabase read failed: ${error.message}`);
+
+  // Newest snapshot wins; seed tickets stay listed until they get their own snapshot.
+  const map = new Map<string, PawnTicket>();
+  for (const row of data) {
+    const t = row.after_json as PawnTicket | null;
+    if (t && !map.has(t.id)) map.set(t.id, t);
   }
-  return readLocalTickets();
+  for (const seed of buildSeedTickets()) {
+    if (!map.has(seed.id)) map.set(seed.id, seed);
+  }
+  return Array.from(map.values()).sort((a, b) => b.publicTicketId - a.publicTicketId);
 }
 
 export async function getTicketById(idOrPublicId: string): Promise<PawnTicket | null> {
@@ -211,11 +224,16 @@ export async function getTicketById(idOrPublicId: string): Promise<PawnTicket | 
   );
 }
 
-export async function checkDuplicateSerialHash(serialHash: string): Promise<PawnTicket | null> {
+/** Scoped by mode so sandbox play can never block a real devnet pledge. */
+export async function checkDuplicateSerialHash(
+  serialHash: string,
+  mode: TicketMode
+): Promise<PawnTicket | null> {
   const all = await listTickets();
   return (
     all.find(
       (t) =>
+        t.mode === mode &&
         t.asset.serialHash === serialHash &&
         t.status !== "REPAID" &&
         t.status !== "CANCELLED" &&
@@ -225,22 +243,24 @@ export async function checkDuplicateSerialHash(serialHash: string): Promise<Pawn
 }
 
 export async function saveTicket(ticket: PawnTicket): Promise<PawnTicket> {
-  const all = readLocalTickets();
-  const idx = all.findIndex((t) => t.id === ticket.id);
-  if (idx >= 0) all[idx] = ticket;
-  else all.unshift(ticket);
-  writeLocalTickets(all);
-
   const sb = getSupabaseAdmin();
   if (sb) {
-    await sb.from("audit_logs").insert({
+    const { error } = await sb.from("audit_logs").insert({
       actor_wallet: ticket.borrowerWallet,
       action: `TICKET_${ticket.status}`,
       entity_type: "ticket_snapshot",
       entity_id: ticket.id,
       after_json: ticket,
     });
+    if (error) throw new Error(`Supabase write failed: ${error.message}`);
+    return ticket;
   }
+
+  const all = [...readLocalTickets()];
+  const idx = all.findIndex((t) => t.id === ticket.id);
+  if (idx >= 0) all[idx] = ticket;
+  else all.unshift(ticket);
+  writeLocalTickets(all);
   return ticket;
 }
 

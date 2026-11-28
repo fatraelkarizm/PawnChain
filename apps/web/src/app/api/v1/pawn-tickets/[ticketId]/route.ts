@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { verifyDevnetTransaction } from "@/lib/solana";
+import { syncDevnetTicket } from "@/lib/devnet";
+import { SANDBOX_WALLETS } from "@/lib/sandbox";
 import { generateAttestationHash, getTicketById, saveTicket } from "@/lib/store";
 
 export async function GET(
@@ -26,20 +27,26 @@ export async function POST(
     }
 
     const body = (await req.json()) as {
-      action: "custody_attest" | "fund" | "repay" | "claim_default" | "cancel";
+      action: "sync" | "custody_attest" | "fund" | "repay" | "claim_default" | "cancel";
       actorWallet?: string;
       txSignature?: string;
       conditionReport?: string;
-      lang?: "en" | "id";
     };
-    const isId = body.lang === "id";
+
+    // Devnet tickets ignore client claims entirely: the chain is the source of truth.
+    if (ticket.mode === "devnet") {
+      if (body.action !== "sync") {
+        return NextResponse.json(
+          { error: "Devnet collateral requests can only be updated via on-chain transactions." },
+          { status: 409 }
+        );
+      }
+      return NextResponse.json({ ticket: await syncDevnetTicket(ticket, body.txSignature) });
+    }
 
     const actor = (body.actorWallet || "").trim();
     if (!actor) {
-      return NextResponse.json(
-        { error: isId ? "Wallet address wajib diisi." : "Wallet address is required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Wallet address is required." }, { status: 400 });
     }
 
     const now = new Date();
@@ -47,38 +54,21 @@ export async function POST(
 
     if (body.action === "custody_attest") {
       if (ticket.asset.assetType !== "PHYSICAL") {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Hanya aset fisik yang memerlukan verifikasi custodian."
-              : "Only physical assets require custodian verification.",
-          },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "Only physical assets require custody verification." }, { status: 400 });
       }
       if (ticket.status !== "PENDING_VERIFICATION") {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Tiket tidak berada pada status menunggu verifikasi."
-              : "Ticket is not awaiting verification.",
-          },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "This collateral request is not awaiting verification." }, { status: 409 });
       }
-      // Separation of authority: borrower cannot self-attest physical custody
-      if (actor === ticket.borrowerWallet) {
+      // Separation of authority: only the custodian may attest, never the borrower.
+      if (actor !== SANDBOX_WALLETS.custodian || actor === ticket.borrowerWallet) {
         return NextResponse.json(
-          {
-            error: isId
-              ? "Borrower dilarang memverifikasi custody barangnya sendiri."
-              : "Borrower cannot self-attest custody of their own asset.",
-          },
+          { error: "Custodian access is required to verify this asset." },
           { status: 403 }
         );
       }
 
       ticket.custodyAttestationHash = generateAttestationHash(ticket.id, actor);
+      ticket.custodianWallet = actor;
       ticket.asset.verificationStatus = "VERIFIED";
       ticket.asset.custodyStatus = "IN_CUSTODY";
       if (body.conditionReport) {
@@ -92,37 +82,19 @@ export async function POST(
 
     if (body.action === "fund") {
       if (ticket.status !== "OPEN") {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Tiket tidak berstatus OPEN (sudah didanai atau belum terverifikasi)."
-              : "Ticket is not OPEN (already funded or unverified).",
-          },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "This request is not open for funding." }, { status: 409 });
       }
       if (actor === ticket.borrowerWallet) {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Borrower tidak boleh mendanai tiket miliknya sendiri."
-              : "Borrower cannot fund their own ticket.",
-          },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "Borrowers cannot fund their own collateral requests." }, { status: 403 });
       }
-      const txCheck = await verifyDevnetTransaction(body.txSignature || `SandboxTx_Fund_${ticket.publicTicketId}`);
-      if (!txCheck.verified) {
-        return NextResponse.json(
-          { error: txCheck.error || (isId ? "Transaksi Solana tidak valid." : "Invalid Solana transaction.") },
-          { status: 400 }
-        );
+      if (actor === ticket.custodianWallet) {
+        return NextResponse.json({ error: "Custodians cannot fund collateral held in their custody." }, { status: 403 });
       }
 
       const due = new Date(now.getTime() + ticket.tenorDays * 86_400_000);
       ticket.lenderWallet = actor;
       ticket.dueAt = due.toISOString();
-      ticket.chainTxSignature = body.txSignature || ticket.chainTxSignature;
+      ticket.chainTxSignature = `SandboxTx_Fund_${ticket.publicTicketId}`;
       ticket.status = "ACTIVE";
       ticket.updatedAt = nowIso;
       await saveTicket(ticket);
@@ -131,30 +103,12 @@ export async function POST(
 
     if (body.action === "repay") {
       if (ticket.status !== "ACTIVE") {
-        return NextResponse.json(
-          { error: isId ? "Tiket tidak dalam status ACTIVE." : "Ticket is not ACTIVE." },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "This loan is not currently active." }, { status: 409 });
       }
       if (actor !== ticket.borrowerWallet) {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Hanya Borrower pemilik tiket yang dapat melunasi."
-              : "Only the ticket's Borrower can repay.",
-          },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "Only the borrower can repay this loan." }, { status: 403 });
       }
-      const txCheck = await verifyDevnetTransaction(body.txSignature || `SandboxTx_Repay_${ticket.publicTicketId}`);
-      if (!txCheck.verified) {
-        return NextResponse.json(
-          { error: txCheck.error || (isId ? "Transaksi pelunasan tidak valid." : "Invalid repayment transaction.") },
-          { status: 400 }
-        );
-      }
-
-      ticket.repayTxSignature = body.txSignature || `SandboxTx_Repay_${ticket.publicTicketId}`;
+      ticket.repayTxSignature = `SandboxTx_Repay_${ticket.publicTicketId}`;
       ticket.asset.custodyStatus = "RELEASED";
       ticket.status = "REPAID";
       ticket.updatedAt = nowIso;
@@ -164,26 +118,13 @@ export async function POST(
 
     if (body.action === "claim_default") {
       if (ticket.status !== "ACTIVE") {
-        return NextResponse.json(
-          { error: isId ? "Tiket tidak dalam status ACTIVE." : "Ticket is not ACTIVE." },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "This loan is not currently active." }, { status: 409 });
       }
       if (actor !== ticket.lenderWallet) {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Hanya Lender tiket ini yang berhak klaim default."
-              : "Only this ticket's Lender can claim default.",
-          },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "Only the funding lender can claim overdue collateral." }, { status: 403 });
       }
       if (ticket.dueAt && now.getTime() <= new Date(ticket.dueAt).getTime()) {
-        return NextResponse.json(
-          { error: isId ? "Belum melewati tanggal jatuh tempo." : "Loan has not reached maturity yet." },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "This loan has not reached its repayment deadline." }, { status: 409 });
       }
       ticket.status = "DEFAULT_CLAIMED";
       ticket.updatedAt = nowIso;
@@ -193,24 +134,10 @@ export async function POST(
 
     if (body.action === "cancel") {
       if (ticket.status !== "OPEN" && ticket.status !== "PENDING_VERIFICATION") {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Tiket yang sudah didanai tidak dapat dibatalkan."
-              : "Funded tickets cannot be cancelled.",
-          },
-          { status: 409 }
-        );
+        return NextResponse.json({ error: "Funded loans cannot be cancelled." }, { status: 409 });
       }
       if (actor !== ticket.borrowerWallet) {
-        return NextResponse.json(
-          {
-            error: isId
-              ? "Hanya Borrower yang dapat membatalkan tiket."
-              : "Only the Borrower can cancel this ticket.",
-          },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "Only the borrower can cancel this request." }, { status: 403 });
       }
       ticket.status = "CANCELLED";
       ticket.asset.custodyStatus = "RELEASED";
@@ -220,7 +147,8 @@ export async function POST(
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch {
+  } catch (err) {
+    console.error("Ticket action failed", err);
     return NextResponse.json({ error: "Failed to process ticket action" }, { status: 500 });
   }
 }

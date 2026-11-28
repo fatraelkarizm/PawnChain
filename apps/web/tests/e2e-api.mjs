@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.BASE_URL || "http://localhost:3000";
 
 async function req(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -21,7 +21,7 @@ async function run() {
   // 1. Home HTML renders cleanly
   const home = await req("/");
   assert.equal(home.status, 200, "Home page should return 200");
-  assert.ok(String(home.data).includes("PawnChain"), "Home HTML should contain PawnChain");
+  assert.ok(String(home.data).includes("Spawn"), "Home HTML should contain Spawn");
 
   // 2. Seeded tickets load
   const list1 = await req("/api/v1/tickets");
@@ -108,6 +108,32 @@ async function run() {
   });
   assert.equal(selfAttest.status, 403, "Borrower cannot self-attest physical custody");
 
+  const stranger = await req(`/api/v1/pawn-tickets/${ticketId}`, {
+    method: "POST",
+    body: JSON.stringify({ action: "custody_attest", actorWallet: lender }),
+  });
+  assert.equal(stranger.status, 403, "Only the registered custodian can attest");
+
+  // Without price evidence a devnet appraisal must refuse instead of inventing prices
+  const devnet = await req("/api/v1/appraisal", {
+    method: "POST",
+    body: JSON.stringify({
+      mode: "devnet",
+      assetType: "PHYSICAL",
+      brand: "Nonexistent",
+      model: "Zzqx 000",
+      condition: "Good",
+      serialNumber: `DEVNET${Date.now()}`,
+    }),
+  });
+  if (devnet.status === 200) {
+    assert.ok(
+      devnet.data.appraisal.comparableReferences.every((r) => r.sourceType === "firecrawl_live")
+    );
+  } else {
+    assert.equal(devnet.data.error, "INSUFFICIENT_DATA");
+  }
+
   // 9. Custodian attestation moves ticket to OPEN
   const attested = await req(`/api/v1/pawn-tickets/${ticketId}`, {
     method: "POST",
@@ -137,7 +163,7 @@ async function run() {
   assert.equal(sharePage.status, 200);
   assert.ok(String(sharePage.data).includes("iPhone 14 Pro 256GB"));
 
-  console.log("ALL 12 E2E API & STATE MACHINE ASSERTIONS PASSED!");
+  console.log("ALL E2E API & STATE MACHINE ASSERTIONS PASSED!");
 }
 
 run().catch((err) => {

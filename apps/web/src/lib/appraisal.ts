@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { AppraisalResult, AssetCondition, AssetType, ComparableReference } from "@/types/pawn";
-import { SOL_PRICE_IDR_ESTIMATE } from "./security";
+import { SOL_PRICE_IDR_ESTIMATE, SOL_PRICE_USD_ESTIMATE } from "./security";
 
 interface AppraisalInput {
   assetId: string;
@@ -35,6 +35,21 @@ function filterOutliers(pricesIdr: number[]): number[] {
   return filtered.length > 0 ? filtered : pricesIdr;
 }
 
+const USD_TO_IDR = Math.round(SOL_PRICE_IDR_ESTIMATE / SOL_PRICE_USD_ESTIMATE);
+
+function extractUsdPricesFromText(text: string): number[] {
+  const matches = text.match(/(?:\$|USD\s?)(\d{2,5}(?:,\d{3})*(?:\.\d{1,2})?)/gi) || [];
+  const parsed: number[] = [];
+  for (const m of matches) {
+    const cleaned = m.replace(/[^0-9.]/g, "");
+    const val = Number(cleaned);
+    if (Number.isFinite(val) && val >= 40 && val <= 50_000) {
+      parsed.push(val);
+    }
+  }
+  return parsed;
+}
+
 function extractIdrPricesFromText(text: string): number[] {
   const matches = text.match(/Rp\s?(\d{1,3}(?:[.,]\d{3})+)/gi) || [];
   const parsed: number[] = [];
@@ -48,67 +63,29 @@ function extractIdrPricesFromText(text: string): number[] {
   return parsed;
 }
 
-function getCachedBenchmarks(brand: string, model: string, assetType: AssetType): ComparableReference[] {
-  const now = new Date().toISOString();
-  const label = `${brand} ${model}`.trim() || "Digital Collateral";
-  const key = label.toLowerCase();
+export const SAMPLE_SOURCE = "Sample data (not a market price)";
 
-  if (assetType === "DIGITAL") {
-    return [
-      {
-        title: `${label} Floor Listing #1`,
-        source: "Magic Eden (Cached Floor)",
-        url: "https://magiceden.io",
-        priceIdr: Math.round(3.4 * SOL_PRICE_IDR_ESTIMATE),
-        priceSol: 3.4,
-        fetchedAt: now,
-        sourceType: "cached_benchmark",
-      },
-      {
-        title: `${label} Recent Sale #2`,
-        source: "Tensor Trade (Cached Floor)",
-        url: "https://www.tensor.trade",
-        priceIdr: Math.round(3.6 * SOL_PRICE_IDR_ESTIMATE),
-        priceSol: 3.6,
-        fetchedAt: now,
-        sourceType: "cached_benchmark",
-      },
-      {
-        title: `${label} Verified Bid #3`,
-        source: "Solana Floor Index",
-        url: "https://magiceden.io",
-        priceIdr: Math.round(3.2 * SOL_PRICE_IDR_ESTIMATE),
-        priceSol: 3.2,
-        fetchedAt: now,
-        sourceType: "cached_benchmark",
-      },
-    ];
-  }
+// Sandbox only. No marketplace names or links, so it cannot pass for real evidence.
+function getSampleReferences(brand: string, model: string, assetType: AssetType): ComparableReference[] {
+  const now = new Date().toISOString();
+  const key = `${brand} ${model}`.toLowerCase();
 
   let baseIdr = 6_500_000;
-  if (key.includes("iphone 15") || key.includes("macbook")) baseIdr = 12_800_000;
+  if (assetType === "DIGITAL") baseIdr = 3.4 * SOL_PRICE_IDR_ESTIMATE;
+  else if (key.includes("iphone 15") || key.includes("macbook")) baseIdr = 12_800_000;
   else if (key.includes("iphone 14")) baseIdr = 9_500_000;
   else if (key.includes("iphone 13")) baseIdr = 8_000_000;
-  else if (key.includes("emas") || key.includes("antam") || key.includes("gold")) baseIdr = 7_500_000;
-  else if (key.includes("rolex") || key.includes("seiko")) baseIdr = 5_800_000;
 
-  const spread = [0.94, 1.0, 1.05];
-  const sources = [
-    { name: "Tokopedia", url: "https://www.tokopedia.com" },
-    { name: "OLX Indonesia", url: "https://www.olx.co.id" },
-    { name: "Blibli Pre-Owned", url: "https://www.blibli.com" },
-  ];
-
-  return spread.map((mult, idx) => {
+  return [0.94, 1.0, 1.05].map((mult, idx) => {
     const priceIdr = Math.round(baseIdr * mult);
     return {
-      title: `${label} — Listing Pembanding #${idx + 1}`,
-      source: `${sources[idx].name} (Cached Benchmark)`,
-      url: sources[idx].url,
+      title: `Sample listing ${idx + 1}`,
+      source: SAMPLE_SOURCE,
+      url: "",
       priceIdr,
       priceSol: Number((priceIdr / SOL_PRICE_IDR_ESTIMATE).toFixed(3)),
       fetchedAt: now,
-      sourceType: "cached_benchmark",
+      sourceType: "sample_data",
     };
   });
 }
@@ -122,7 +99,7 @@ async function fetchFirecrawlReferences(
   if (!apiKey) return null;
 
   try {
-    const query = `${brand} ${model} ${condition === "Mint" ? "mulus" : "bekas"} harga Rp`;
+    const query = `${brand} ${model} ${condition === "Mint" ? "mint" : "used"} price USD`;
     const res = await fetch("https://api.firecrawl.dev/v1/search", {
       method: "POST",
       headers: {
@@ -131,7 +108,7 @@ async function fetchFirecrawlReferences(
       },
       body: JSON.stringify({
         query,
-        limit: 6,
+        limit: 8,
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -146,10 +123,15 @@ async function fetchFirecrawlReferences(
 
     for (const item of payload.data || []) {
       const combined = `${item.title || ""} ${item.description || ""} ${item.markdown || ""}`;
-      const prices = extractIdrPricesFromText(combined);
-      if (prices.length === 0 || !item.url) continue;
+      const usdPrices = extractUsdPricesFromText(combined);
+      const idrPrices = usdPrices.length === 0 ? extractIdrPricesFromText(combined) : [];
+      if ((usdPrices.length === 0 && idrPrices.length === 0) || !item.url) continue;
 
-      const medianItemPrice = computeMedian(filterOutliers(prices));
+      const medianUsd =
+        usdPrices.length > 0
+          ? computeMedian(filterOutliers(usdPrices))
+          : computeMedian(filterOutliers(idrPrices)) / USD_TO_IDR;
+      const medianItemPriceIdr = Math.round(medianUsd * USD_TO_IDR);
       let host = "Web Listing";
       try {
         host = new URL(item.url).hostname.replace("www.", "");
@@ -161,27 +143,58 @@ async function fetchFirecrawlReferences(
         title: (item.title || `${brand} ${model}`).slice(0, 72),
         source: host,
         url: item.url,
-        priceIdr: medianItemPrice,
-        priceSol: Number((medianItemPrice / SOL_PRICE_IDR_ESTIMATE).toFixed(3)),
+        priceIdr: medianItemPriceIdr,
+        priceSol: Number((medianUsd / SOL_PRICE_USD_ESTIMATE).toFixed(3)),
         fetchedAt: now,
         sourceType: "firecrawl_live",
       });
       if (refs.length >= 3) break;
     }
 
-    return refs.length > 0 ? refs : null;
+    // A single listing is not enough evidence for a median.
+    return refs.length >= 2 ? refs : null;
   } catch {
     return null;
   }
 }
 
-export async function runAiAppraisal(input: AppraisalInput): Promise<AppraisalResult> {
+function unappraised(assetId: string): AppraisalResult {
+  return {
+    id: crypto.randomUUID(),
+    assetId,
+    estimatedMinSol: 0,
+    estimatedMaxSol: 0,
+    medianBenchmarkSol: 0,
+    conditionAdjustedSol: 0,
+    suggestedLtv: 0,
+    suggestedMaxLoanSol: 0,
+    riskScore: 100,
+    riskLevel: "HIGH",
+    confidenceScore: 0,
+    riskFactors: ["No market price source for this digital asset; lenders must value it themselves"],
+    missingInformation: ["Market price evidence"],
+    comparableReferences: [],
+    humanReviewRequired: true,
+    modelVersion: "unappraised",
+    createdAt: new Date().toISOString(),
+  };
+}
+
+/** Returns null when a physical asset lacks price evidence and sample data is not allowed. */
+export async function runAiAppraisal(
+  input: AppraisalInput,
+  { allowSample }: { allowSample: boolean }
+): Promise<AppraisalResult | null> {
   const liveRefs =
     input.assetType === "PHYSICAL"
       ? await fetchFirecrawlReferences(input.brand, input.model, input.condition)
       : null;
 
-  const refs = liveRefs ?? getCachedBenchmarks(input.brand, input.model, input.assetType);
+  if (!liveRefs && !allowSample) {
+    return input.assetType === "DIGITAL" ? unappraised(input.assetId) : null;
+  }
+
+  const refs = liveRefs ?? getSampleReferences(input.brand, input.model, input.assetType);
   const validPricesIdr = filterOutliers(refs.map((r) => r.priceIdr));
   const medianIdr = computeMedian(validPricesIdr);
   const minIdr = Math.min(...validPricesIdr);
@@ -217,10 +230,10 @@ export async function runAiAppraisal(input: AppraisalInput): Promise<AppraisalRe
   }
 
   if (!liveRefs) {
-    riskFactors.push("Menggunakan referensi pasar ter-cache (Firecrawl live fallback)");
+    riskFactors.push("Sandbox: harga contoh, bukan data pasar");
   }
 
-  const confidenceScore = liveRefs ? 0.88 : input.hasSerial ? 0.79 : 0.66;
+  const confidenceScore = !liveRefs ? 0 : refs.length >= 3 ? 0.85 : 0.7;
   const riskLevel: "LOW" | "MEDIUM" | "HIGH" =
     riskScore <= 30 ? "LOW" : riskScore <= 55 ? "MEDIUM" : "HIGH";
 
@@ -240,7 +253,7 @@ export async function runAiAppraisal(input: AppraisalInput): Promise<AppraisalRe
     missingInformation,
     comparableReferences: refs,
     humanReviewRequired: confidenceScore < 0.72 || riskLevel === "HIGH",
-    modelVersion: liveRefs ? "pawnchain-firecrawl-v1" : "pawnchain-benchmark-v1",
+    modelVersion: liveRefs ? "pawnchain-firecrawl-v1" : "sample-data",
     createdAt: new Date().toISOString(),
   };
 }

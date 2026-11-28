@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getTicketById } from "@/lib/store";
-import { formatIdrFromSol, lamportsToSol, shortenAddress } from "@/lib/security";
+import { formatUsdFromSol, lamportsToSol, shortenAddress } from "@/lib/security";
 import { TicketActionClient } from "@/components/TicketActionClient";
+import { AppraisalSources } from "@/components/AppraisalSources";
+import { syncDevnetTicket } from "@/lib/devnet";
+import { explorerAddressUrl } from "@/lib/solana";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +19,15 @@ export async function generateMetadata({
   const { id } = await params;
   const ticket = await getTicketById(id);
   if (!ticket) {
-    return { title: "Ticket Not Found — PawnChain" };
+    return { title: "Request not found — Spawn" };
   }
   const principalSol = lamportsToSol(ticket.principalLamports).toFixed(2);
-  const title = `PawnChain #${ticket.publicTicketId} — ${ticket.asset.brand} ${ticket.asset.model} (${principalSol} SOL)`;
-  const description = `Need ${principalSol} SOL · ${(ticket.interestBps / 100).toFixed(1)}% interest · ${ticket.tenorDays} days · AI Median ${ticket.appraisal.medianBenchmarkSol} SOL (LTV ${Math.round(ticket.ltv * 100)}%)`;
+  const title = `Spawn #${ticket.publicTicketId} — ${ticket.asset.brand} ${ticket.asset.model} (${principalSol} SOL)`;
+  const description = `Need ${principalSol} SOL · ${(ticket.interestBps / 100).toFixed(1)}% interest · ${ticket.tenorDays} days · ${
+    ticket.appraisal.comparableReferences.length > 0
+      ? `Estimated value ${ticket.appraisal.medianBenchmarkSol} SOL (LTV ${Math.round(ticket.ltv * 100)}%)`
+      : "Not appraised"
+  }`;
   return {
     title,
     description,
@@ -35,13 +42,17 @@ export default async function ShareableTicketPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const ticket = await getTicketById(id);
+  const stored = await getTicketById(id);
 
-  if (!ticket) {
+  if (!stored) {
     notFound();
   }
 
+  // Show the last known state if the RPC is unreachable.
+  const ticket = await syncDevnetTicket(stored).catch(() => stored);
+
   const principalSol = lamportsToSol(ticket.principalLamports);
+  const isAppraised = ticket.appraisal.comparableReferences.length > 0;
   const totalRepaySol = Number(
     (principalSol * (1 + ticket.interestBps / 10_000)).toFixed(3)
   );
@@ -54,14 +65,14 @@ export default async function ShareableTicketPage({
           className="mb-5 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink-primary)]"
         >
           <ArrowLeft className="h-4 w-4" />
-          Kembali ke Buku Besar PawnChain
+          Back to collateral marketplace
         </Link>
 
         <div className="rounded-lg border border-[var(--border-ledger)] bg-white p-6">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border-ledger)] pb-4">
             <div>
               <span className="font-mono text-xs text-[var(--ink-muted)]">
-                Tiket Gadai #{ticket.publicTicketId}
+                Collateral request #{ticket.publicTicketId}
               </span>
               <h1 className="mt-1 text-2xl font-bold text-[var(--ink-primary)]">
                 {ticket.asset.brand} {ticket.asset.model}
@@ -71,69 +82,60 @@ export default async function ShareableTicketPage({
               </p>
             </div>
             <span className="rounded border border-[var(--border-ledger)] bg-[var(--bg-canvas)] px-2.5 py-1 font-mono text-xs font-semibold text-[var(--accent-vault)]">
-              {ticket.status}
+              {ticket.status} · {ticket.mode === "devnet" ? "Solana Devnet" : "Sandbox simulation"}
             </span>
           </div>
 
           {/* Financial Summary */}
           <div className="my-5 grid grid-cols-2 gap-4 rounded-md bg-[var(--bg-canvas)] p-4 sm:grid-cols-3">
             <div>
-              <span className="block text-xs text-[var(--ink-muted)]">Pinjaman Diminta</span>
+              <span className="block text-xs text-[var(--ink-muted)]">Requested loan</span>
               <span className="font-mono text-lg font-bold tabular-nums">
                 {principalSol.toFixed(2)} SOL
               </span>
               <span className="block font-mono text-xs text-[var(--ink-muted)]">
-                {formatIdrFromSol(principalSol)}
+                {formatUsdFromSol(principalSol)}
               </span>
             </div>
             <div>
-              <span className="block text-xs text-[var(--ink-muted)]">Bunga / Tenor</span>
+              <span className="block text-xs text-[var(--ink-muted)]">Interest rate / Duration</span>
               <span className="font-mono text-lg font-bold tabular-nums">
                 {(ticket.interestBps / 100).toFixed(1)}%
               </span>
               <span className="block text-xs text-[var(--ink-muted)]">
-                {ticket.tenorDays} hari
+                {ticket.tenorDays} days
               </span>
             </div>
             <div>
-              <span className="block text-xs text-[var(--ink-muted)]">Total Pengembalian</span>
+              <span className="block text-xs text-[var(--ink-muted)]">Total repayment</span>
               <span className="font-mono text-lg font-bold tabular-nums text-[var(--accent-vault)]">
                 {totalRepaySol} SOL
               </span>
               <span className="block font-mono text-xs text-[var(--ink-muted)]">
-                LTV {Math.round(ticket.ltv * 100)}%
+                {isAppraised ? `LTV ${Math.round(ticket.ltv * 100)}%` : "Not appraised"}
               </span>
             </div>
           </div>
 
-          {/* AI Valuation & Firecrawl Proof */}
+          {/* Asset Valuation & References */}
           <div className="mb-5 rounded-md border border-[var(--border-ledger)] p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-bold text-[var(--ink-primary)]">
-                Bukti Taksiran AI ({ticket.appraisal.modelVersion})
+                Asset valuation · Market data analysis
               </span>
               <span className="font-mono text-xs text-[var(--accent-vault)]">
-                Nilai Median: {ticket.appraisal.medianBenchmarkSol} SOL
+                {isAppraised
+                  ? `Estimated market value: ${ticket.appraisal.medianBenchmarkSol} SOL`
+                  : "Not appraised"}
               </span>
             </div>
-            <ul className="mt-2.5 space-y-1.5">
-              {ticket.appraisal.comparableReferences.map((ref, idx) => (
-                <li key={idx} className="flex items-center justify-between text-xs">
-                  <a
-                    href={ref.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-[var(--accent-vault)] hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" />
-                    {ref.source}
-                  </a>
-                  <span className="font-mono tabular-nums">
-                    {ref.priceSol} SOL
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-2.5">
+              <AppraisalSources references={ticket.appraisal.comparableReferences} />
+            </div>
+            <p className="mt-2.5 text-[11px] text-[var(--ink-muted)]">
+              AI-generated valuations are estimates based on available market data. Actual collateral
+              value and loan approval may vary.
+            </p>
           </div>
 
           {/* Custody & Borrower Info */}
@@ -141,15 +143,28 @@ export default async function ShareableTicketPage({
             <span className="inline-flex items-center gap-1.5">
               <ShieldCheck className="h-4 w-4 text-[var(--accent-vault)]" />
               {ticket.asset.assetType === "DIGITAL"
-                ? "Jaminan NFT terkunci di Escrow PDA Solana"
+                ? ticket.mode === "devnet"
+                  ? "On-chain Solana escrow"
+                  : "Simulated escrow · Sandbox environment"
                 : ticket.custodyAttestationHash
-                  ? `Terverifikasi Custodian (${shortenAddress(ticket.custodyAttestationHash, 6)})`
-                  : "Menunggu verifikasi fisik Custodian"}
+                  ? `Custody verified (${shortenAddress(ticket.custodyAttestationHash, 6)})`
+                  : "Awaiting custody verification"}
             </span>
             <span className="font-mono">
               Borrower: {shortenAddress(ticket.borrowerWallet)}
             </span>
           </div>
+
+          {ticket.chainTicketPubkey && (
+            <a
+              href={explorerAddressUrl(ticket.chainTicketPubkey)}
+              target="_blank"
+              rel="noreferrer"
+              className="mb-4 block break-all font-mono text-xs text-[var(--accent-vault)] hover:underline"
+            >
+              View on Solana Explorer: {ticket.chainTicketPubkey}
+            </a>
+          )}
 
           <TicketActionClient ticket={ticket} />
         </div>

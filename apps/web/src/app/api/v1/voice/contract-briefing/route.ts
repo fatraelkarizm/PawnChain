@@ -19,33 +19,37 @@ export async function POST(req: Request) {
 
     const script =
       lang === "en"
-        ? `PawnChain contract summary. You are pledging ${assetName} for a loan of ${principalSol} SOL. Flat interest is ${interestPercent} percent over ${tenorDays} days. Total repayment at maturity is ${totalRepay} SOL. If unpaid after the due date, collateral transfers automatically to the lender.`
-        : `Ringkasan kontrak PawnChain. Anda menggadaikan ${assetName} untuk pinjaman sebesar ${principalSol} SOL dengan bunga tetap ${interestPercent} persen selama ${tenorDays} hari. Total pelunasan saat jatuh tempo adalah ${totalRepay} SOL. Jika melewati batas waktu, jaminan berpindah otomatis ke pemberi pinjaman.`;
+        ? `Spawn contract summary. You are pledging ${assetName} for a loan of ${principalSol} SOL. Flat interest is ${interestPercent} percent over ${tenorDays} days. Total repayment at maturity is ${totalRepay} SOL. If unpaid after the due date, the lender can claim the collateral.`
+        : `Ringkasan kontrak Spawn. Anda mengagunkan ${assetName} untuk pinjaman sebesar ${principalSol} SOL dengan bunga tetap ${interestPercent} persen selama ${tenorDays} hari. Total pelunasan saat jatuh tempo adalah ${totalRepay} SOL. Jika melewati batas waktu, pendana dapat mengklaim agunan.`;
 
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb";
 
     if (apiKey) {
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-        method: "POST",
-        headers: {
-          "xi-api-key": apiKey,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          text: script,
-          model_id: "eleven_multilingual_v2",
-        }),
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (res.ok) {
-        const buffer = Buffer.from(await res.arrayBuffer());
-        return NextResponse.json({
-          provider: "elevenlabs",
-          script,
-          audioDataUrl: `data:audio/mpeg;base64,${buffer.toString("base64")}`,
+      try {
+        const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+          method: "POST",
+          headers: {
+            "xi-api-key": apiKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: script,
+            model_id: "eleven_multilingual_v2",
+          }),
+          signal: AbortSignal.timeout(10000),
         });
+
+        if (res.ok) {
+          const buffer = Buffer.from(await res.arrayBuffer());
+          return NextResponse.json({
+            provider: "elevenlabs",
+            script,
+            audioDataUrl: `data:audio/mpeg;base64,${buffer.toString("base64")}`,
+          });
+        }
+      } catch {
+        // Fall through to browser_speech_fallback if ElevenLabs times out or is unreachable.
       }
     }
 

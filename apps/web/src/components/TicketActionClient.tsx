@@ -1,142 +1,151 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import type { PawnTicket } from "@/types/pawn";
 import { lamportsToSol } from "@/lib/security";
-import { sendDevnetMemoTx, sendDevnetTransferTx } from "@/lib/walletTx";
+import { runDevnetAction } from "@/lib/devnetActions";
+import { SANDBOX_WALLETS } from "@/lib/sandbox";
+import { explorerTxUrl } from "@/lib/solana";
 
-const LENDER_DEMO_WALLET = "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R";
-const CUSTODIAN_DEMO_WALLET = "CustodianHubJakartaVerified11111111111111111";
+const WalletMultiButton = dynamic(
+  async () => (await import("@solana/wallet-adapter-react-ui")).WalletMultiButton,
+  { ssr: false }
+);
+
+type Action = "fund" | "repay" | "custody_attest";
 
 export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
   const router = useRouter();
   const { connection } = useConnection();
   const wallet = useWallet();
-  const { publicKey, connected } = wallet;
+  const isDevnet = ticket.mode === "devnet";
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string; signature?: string } | null>(
+    null
+  );
 
   const principalSol = lamportsToSol(ticket.principalLamports);
   const totalDue = (principalSol * (1 + ticket.interestBps / 10_000)).toFixed(3);
+  const disabled = busy || (isDevnet && !wallet.publicKey);
+  // Sandbox plays every role from this page; on devnet the connected wallet decides.
+  const address = isDevnet ? wallet.publicKey?.toBase58() : undefined;
+  const isBorrower = address === ticket.borrowerWallet;
+  const isOtherWallet = !!address && !isBorrower;
 
-  async function runAction(action: "fund" | "repay" | "custody_attest") {
+  async function runAction(action: Action) {
     setBusy(true);
     setMessage(null);
-
-    const isWallet = connected && Boolean(publicKey);
-    const actorWallet =
-      isWallet && publicKey
-        ? publicKey.toBase58()
-        : action === "fund"
-          ? LENDER_DEMO_WALLET
-          : action === "custody_attest"
-            ? CUSTODIAN_DEMO_WALLET
-            : ticket.borrowerWallet;
-
     try {
-      let txSignature: string | undefined;
-      if (isWallet) {
-        if (action === "fund") {
-          txSignature = await sendDevnetTransferTx(
-            connection,
-            wallet,
-            ticket.borrowerWallet,
-            ticket.principalLamports,
-            `PawnChain:Fund:#${ticket.publicTicketId}`
-          );
-        } else if (action === "repay" && ticket.lenderWallet) {
-          const interest = Math.floor((ticket.principalLamports * ticket.interestBps) / 10_000);
-          txSignature = await sendDevnetTransferTx(
-            connection,
-            wallet,
-            ticket.lenderWallet,
-            ticket.principalLamports + interest,
-            `PawnChain:Repay:#${ticket.publicTicketId}`
-          );
-        } else if (action === "custody_attest") {
-          txSignature = await sendDevnetMemoTx(
-            connection,
-            wallet,
-            `PawnChain:CustodyAttest:#${ticket.publicTicketId}`
-          );
-        }
+      let updated: PawnTicket;
+      let signature: string | undefined;
+      if (isDevnet) {
+        ({ ticket: updated, signature } = await runDevnetAction(connection, wallet, ticket, action));
+      } else {
+        const actorWallet =
+          action === "fund"
+            ? SANDBOX_WALLETS.lender
+            : action === "custody_attest"
+              ? SANDBOX_WALLETS.custodian
+              : ticket.borrowerWallet;
+        const res = await fetch(`/api/v1/pawn-tickets/${ticket.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, actorWallet }),
+        });
+        const data = (await res.json()) as { error?: string; ticket?: PawnTicket };
+        if (!res.ok || !data.ticket) throw new Error(data.error || "Action failed.");
+        updated = data.ticket;
       }
-
-      const res = await fetch(`/api/v1/pawn-tickets/${ticket.id}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, actorWallet, txSignature }),
-      });
-      const data = (await res.json()) as { error?: string; ticket?: PawnTicket };
-      if (!res.ok) {
-        setMessage(data.error || "Action failed.");
-        return;
-      }
-      setMessage(`Updated! Ticket status is now: ${data.ticket?.status}`);
+      const text =
+        action === "repay"
+          ? "Repayment confirmed. Your collateral is now eligible for release."
+          : action === "custody_attest"
+            ? "Physical inspection completed. This collateral request is now open for funding."
+            : `Collateral request updated to ${updated.status}.`;
+      setMessage({ ok: true, signature, text });
       router.refresh();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Wallet transaction failed.");
+      setMessage({
+        ok: false,
+        text: err instanceof Error ? err.message : "Transaction could not be completed.",
+      });
     } finally {
       setBusy(false);
     }
   }
 
+  const explorer = message?.signature ? explorerTxUrl(message.signature) : null;
+
   return (
     <div className="space-y-3 border-t border-[var(--border-ledger)] pt-4">
       {message && (
-        <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          {message}
+        <div
+          role="status"
+          className={`break-words rounded border px-3 py-2 text-xs ${
+            message.ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-rose-200 bg-rose-50 text-rose-900"
+          }`}
+        >
+          {message.text}
+          {explorer && (
+            <a href={explorer} target="_blank" rel="noreferrer" className="ml-2 font-semibold underline">
+              View on Solana Explorer
+            </a>
+          )}
         </div>
       )}
 
+      {isDevnet && <WalletMultiButton />}
+
       <div className="flex flex-wrap items-center gap-2">
-        {ticket.status === "PENDING_VERIFICATION" &&
-          (!connected || publicKey?.toBase58() !== ticket.borrowerWallet) && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => runAction("custody_attest")}
-              className="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:opacity-50"
-            >
-              Verify Physical Asset (Custodian)
-            </button>
-          )}
+        {ticket.status === "PENDING_VERIFICATION" && !isBorrower && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => runAction("custody_attest")}
+            className="rounded bg-amber-700 hover:bg-amber-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Verify Collateral
+          </button>
+        )}
 
-        {ticket.status === "OPEN" &&
-          (!connected || publicKey?.toBase58() !== ticket.borrowerWallet) && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => runAction("fund")}
-              className="rounded bg-[var(--accent-vault)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-vault-hover)] disabled:opacity-50"
-            >
-              Fund Now ({principalSol.toFixed(2)} SOL)
-            </button>
-          )}
+        {ticket.status === "OPEN" && !isBorrower && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => runAction("fund")}
+            className="rounded bg-[var(--accent-vault)] hover:bg-[var(--accent-vault-hover)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Fund This Request ({principalSol.toFixed(2)} SOL)
+          </button>
+        )}
 
-        {ticket.status === "ACTIVE" &&
-          (!connected || publicKey?.toBase58() === ticket.borrowerWallet) && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => runAction("repay")}
-              className="rounded bg-[var(--ink-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-            >
-              Repay & Reclaim ({totalDue} SOL)
-            </button>
-          )}
+        {ticket.status === "ACTIVE" && !isOtherWallet && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => runAction("repay")}
+            className="rounded bg-[var(--ink-primary)] hover:bg-slate-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Repay &amp; Reclaim Collateral ({totalDue} SOL)
+          </button>
+        )}
 
-        {connected && publicKey?.toBase58() === ticket.borrowerWallet && ticket.status !== "ACTIVE" && (
+        {isBorrower && (ticket.status === "PENDING_VERIFICATION" || ticket.status === "OPEN") && (
           <span className="text-xs text-[var(--ink-muted)]">
-            Connected as Borrower — awaiting {ticket.status === "PENDING_VERIFICATION" ? "Custodian verification" : "Lender funding"}.
+            {ticket.status === "OPEN"
+              ? "Waiting for a lender to fund this request."
+              : "Collateral verification is required before funding."}
           </span>
         )}
 
-        {connected && publicKey?.toBase58() !== ticket.borrowerWallet && ticket.status === "ACTIVE" && (
+        {isOtherWallet && ticket.status === "ACTIVE" && (
           <span className="text-xs text-[var(--ink-muted)]">
-            Active loan — awaiting Borrower repayment.
+            Financing successfully funded. Awaiting repayment.
           </span>
         )}
       </div>

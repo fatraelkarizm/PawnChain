@@ -1,14 +1,46 @@
 import crypto from "node:crypto";
 
 export const LAMPORTS_PER_SOL = 1_000_000_000;
-export const SOL_PRICE_IDR_ESTIMATE = 2_400_000; // Demo reference rate for UI display
+export const SOL_PRICE_USD_ESTIMATE = 150; // Reference rate for global USD display
+export const SOL_PRICE_IDR_ESTIMATE = 2_400_000; // Legacy compatibility rate
 
 const DEFAULT_DEV_HMAC_SECRET = "pawnchain-devnet-hmac-secret-do-not-use-in-prod";
 
+const hmacSecret = () => process.env.SERIAL_HMAC_SECRET || DEFAULT_DEV_HMAC_SECRET;
+
+export function normalizeIdentifier(rawIdentifier: string): string {
+  return rawIdentifier.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 export function hashAssetIdentifier(rawIdentifier: string): string {
-  const normalized = rawIdentifier.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const secret = process.env.SERIAL_HMAC_SECRET || DEFAULT_DEV_HMAC_SECRET;
-  return crypto.createHmac("sha256", secret).update(normalized).digest("hex");
+  return crypto
+    .createHmac("sha256", hmacSecret())
+    .update(normalizeIdentifier(rawIdentifier))
+    .digest("hex");
+}
+
+const mac = (body: string) =>
+  crypto.createHmac("sha256", hmacSecret()).update(`token:${body}`).digest("base64url");
+
+/** Lets the server hand data to the browser and trust it when it comes back. */
+export function signToken(payload: object, ttlSeconds: number): string {
+  const body = Buffer.from(
+    JSON.stringify({ payload, exp: Date.now() + ttlSeconds * 1000 })
+  ).toString("base64url");
+  return `${body}.${mac(body)}`;
+}
+
+export function verifyToken<T>(token: string): T | null {
+  const [body, signature] = token.split(".");
+  if (!body || !signature) return null;
+  const expected = Buffer.from(mac(body));
+  const given = Buffer.from(signature);
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  const { payload, exp } = JSON.parse(Buffer.from(body, "base64url").toString("utf-8")) as {
+    payload: T;
+    exp: number;
+  };
+  return Date.now() <= exp ? payload : null;
 }
 
 export function solToLamports(sol: number): number {
@@ -26,6 +58,15 @@ export function calculateInterestLamports(principalLamports: number, interestBps
 
 export function formatSol(lamports: number): string {
   return `${(lamports / LAMPORTS_PER_SOL).toFixed(3)} SOL`;
+}
+
+export function formatUsdFromSol(sol: number): string {
+  const usd = Math.round(sol * SOL_PRICE_USD_ESTIMATE);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(usd);
 }
 
 export function formatIdrFromSol(sol: number): string {
