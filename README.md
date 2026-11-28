@@ -18,6 +18,7 @@
 </p>
 
 <p align="center">
+  <a href="#-how-it-works-user-flow">How It Works</a> •
   <a href="#-60-second-judge-walkthrough">Judge Walkthrough</a> •
   <a href="#-product-showcase">Screenshots</a> •
   <a href="#-architecture">Architecture</a> •
@@ -37,6 +38,40 @@
 - **Atomic Solana Escrow (Anchor):** Single-supply collateral tokens are locked in a program-derived escrow account; loan repayment and collateral release execute atomically in a single instruction (`repay_and_release`).
 - **Voice Contract Briefing (ElevenLabs):** Reads principal, interest rate, duration, total repayment, and default rules aloud before signing — supporting both **English** and **Bahasa Indonesia**.
 - **Two Isolated Environments:** **Sandbox Mode** (instant demo without a wallet) and **Solana Devnet Mode** (real Phantom/Solflare transactions verifiable on Solana Explorer).
+
+---
+
+## 🔄 How It Works (User Flow)
+
+| Step | Role | What Happens | Status |
+| :---: | :--- | :--- | :--- |
+| **1** | **Borrower** | Select physical or digital collateral → run **Firecrawl** market appraisal (max **60% LTV**) + HMAC duplicate check → listen to **ElevenLabs** voice terms → submit request. | `PENDING_VERIFICATION` *(physical)* / `OPEN` *(digital)* |
+| **2** | **Custodian** | Registered physical custodian inspects the asset and submits an on-chain custody attestation (`submit_custody_attestation`). | `PENDING_VERIFICATION` → `OPEN` |
+| **3** | **Lender** | Browses verified listings in the Collateral Marketplace, checks valuation & LTV, and funds the loan in SOL (`fund_loan`). | `OPEN` → `ACTIVE` |
+| **4** | **Borrower / Lender** | Borrower repays principal + interest to atomically reclaim collateral (`repay_and_release`), **or** Lender claims collateral after expiry (`claim_default`). | `ACTIVE` → `REPAID` / `DEFAULTED` |
+
+```mermaid
+sequenceDiagram
+  actor B as Borrower
+  participant App as Spawn App (Firecrawl + ElevenLabs)
+  actor C as Custodian
+  actor L as Lender
+  participant SC as Solana Anchor Escrow
+
+  B->>App: 1. Submit asset + serial/IMEI
+  App-->>B: Live median price, 60% LTV & voice terms
+  B->>SC: 2. Create ticket + CollateralLock PDA
+  C->>SC: 3. Attest physical custody (submit_custody_attestation)
+  L->>SC: 4. Fund loan in SOL (fund_loan)
+  alt Repaid on time
+    B->>SC: 5a. Repay principal + interest (repay_and_release)
+    SC-->>B: Collateral released atomically
+  else Loan defaulted
+    L->>SC: 5b. Claim collateral (claim_default)
+  end
+```
+
+> **Sandbox vs. Solana Devnet:** Switch anytime in the header. **Sandbox** simulates the full 4-step flow instantly with role switching (`Borrower` / `Custodian Hub` / `Lender`) and zero wallet setup. **Devnet** signs real transactions via Phantom/Solflare and links every step to Solana Explorer.
 
 ---
 
