@@ -775,10 +775,10 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         {/* Asymmetric 2-Column Ledger Workbench */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
           {/* LEFT: Appraisal & Pawn Creation Desk */}
-          <section className="lg:col-span-5">
+          <section className="min-w-0 lg:col-span-5">
             <div className="rounded-lg border border-[var(--border-ledger)] bg-[var(--bg-surface)]">
               <div className="border-b border-[var(--border-ledger)] px-5 py-4">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <h2 className="text-base font-bold text-[var(--ink-primary)]">
                       {t.deskTitle}
@@ -1102,7 +1102,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           </section>
 
           {/* RIGHT: Vault Ledger & Marketplace */}
-          <section className="lg:col-span-7">
+          <section className="min-w-0 lg:col-span-7">
             <div className="rounded-lg border border-[var(--border-ledger)] bg-[var(--bg-surface)]">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-ledger)] px-5 py-4">
                 <div>
