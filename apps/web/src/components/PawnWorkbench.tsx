@@ -632,7 +632,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                   <h3 className="text-sm font-bold text-[var(--ink-primary)]">
                     {feedback.type === "ok"
                       ? lang === "en"
-                        ? "Transaction Confirmed"
+                        ? feedback.signature
+                          ? "Transaction Confirmed"
+                          : "Sandbox Updated"
                         : "Berhasil Diproses"
                       : lang === "en"
                         ? "Action Blocked / Alert"

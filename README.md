@@ -45,10 +45,10 @@ docs/               PRD, ideation, resources, and status audit
 
 ## Judge Quick Test (60 Seconds)
 
-1. Open the app (Sandbox Mode is enabled by default — no wallet setup required).
-2. Click **Demo: iPhone 14 Pro** → **Run AI Market Appraisal** (see live Firecrawl pricing & 60% LTV cap) → **Listen to Contract Summary** (ElevenLabs voice).
-3. Click **Test Duplicate IMEI** → **Run AI Market Appraisal** to see the HMAC anti-fraud block (`409 POTENTIAL_DUPLICATE`).
-4. Submit a ticket as **Borrower**, switch role to **Custodian Hub** to verify check-in (`PENDING_VERIFICATION → OPEN`), switch to **Lender** to fund (`OPEN → ACTIVE`), and switch back to **Borrower** to repay (`ACTIVE → REPAID`).
+1. Open the app. The sandbox environment is on by default, so no wallet is needed.
+2. Click **iPhone 14 Pro**, then **Estimate asset value** and **Listen to loan terms**. Without API keys the app shows labelled sample prices and uses the browser voice.
+3. Click **Duplicate asset check**, then **Estimate asset value** to see the double-pledge block (`409 POTENTIAL_DUPLICATE`).
+4. Create a request as **Borrower**, switch to **Custodian Hub** to verify it (`PENDING_VERIFICATION → OPEN`), switch to **Lender** to fund it (`OPEN → ACTIVE`), then switch back to **Borrower** to repay (`ACTIVE → REPAID`).
 
 ## Quick start
 
@@ -103,6 +103,7 @@ From `apps/web`:
 - Digital collateral must be a token with supply 1, 0 decimals and no mint or freeze authority, so standard Metaplex NFTs are not accepted. Digital pledges on devnet are unappraised.
 - The app has no wallet sign-in. Devnet state is protected by the chain; sandbox state is open to anyone.
 - The SOL/IDR rate is a fixed demo value.
+- The appraisal endpoint returns the fingerprint for any serial, and the program cannot check it against a real item, so someone could lock another person's serial first.
 
 ## License
 
