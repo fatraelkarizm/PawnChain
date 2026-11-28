@@ -40,14 +40,14 @@ const WalletMultiButton = dynamic(
 type MarketFilter = "ALL" | "OPEN" | "PENDING_VERIFICATION" | "ACTIVE" | "REPAID";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
-const SOL_IDR_RATE = 2_400_000;
+const SOL_USD_RATE = 150;
 
-function formatIdr(idr: number): string {
-  return new Intl.NumberFormat("id-ID", {
+function formatUsd(usd: number): string {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "IDR",
+    currency: "USD",
     maximumFractionDigits: 0,
-  }).format(idr);
+  }).format(usd);
 }
 
 function shortAddr(addr: string | null): string {
@@ -434,18 +434,15 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
           {/* Row 1 on mobile: Brand + Quick Actions */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[var(--accent-vault)] text-sm font-bold text-white">
-                P
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold tracking-tight text-[var(--ink-primary)]">
-                  PawnChain
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-emerald-800">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
-                  {t.subtitle}
-                </span>
-              </div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.jpg"
+                alt="Spawn logo"
+                className="h-8 w-8 shrink-0 rounded-md border border-[var(--border-ledger)] object-cover"
+              />
+              <span className="text-base font-bold tracking-tight text-[var(--ink-primary)]">
+                Spawn
+              </span>
             </div>
 
             {/* Mobile-only compact EN/ID + Guide */}
@@ -688,7 +685,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                 <div className="flex items-center gap-2">
                   <HelpCircle className="h-5 w-5 text-[var(--accent-vault)]" />
                   <h3 className="text-base font-bold text-[var(--ink-primary)]">
-                    {lang === "en" ? "PawnChain Quick Guide" : "Panduan Cepat PawnChain"}
+                    {lang === "en" ? "Spawn quick guide" : "Panduan cepat Spawn"}
                   </h3>
                 </div>
                 <button
@@ -982,7 +979,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                           {appraisal.medianBenchmarkSol} SOL
                         </span>
                         <span className="block font-mono text-[11px] text-[var(--ink-muted)]">
-                          {formatIdr(appraisal.medianBenchmarkSol * SOL_IDR_RATE)}
+                          {formatUsd(appraisal.medianBenchmarkSol * SOL_USD_RATE)}
                         </span>
                       </div>
                       <div>
@@ -1388,9 +1385,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
       <footer className="border-t border-[var(--border-ledger)] bg-white py-5">
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 text-xs text-[var(--ink-muted)] sm:px-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <span className="font-semibold text-[var(--ink-primary)]">PawnChain</span>
+            <span className="font-semibold text-[var(--ink-primary)]">Spawn</span>
             <span className="mx-1.5">·</span>
-            <span>Built for Dev3pack Global Hackathon · Solana Devnet</span>
+            <span>Built for Dev3pack Global Hackathon</span>
           </div>
           <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
             <a

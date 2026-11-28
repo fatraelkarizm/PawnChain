@@ -1,11 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import type { ComparableReference } from "@/types/pawn";
-
-const idr = new Intl.NumberFormat("id-ID", {
-  style: "currency",
-  currency: "IDR",
-  maximumFractionDigits: 0,
-});
+import { formatUsdFromSol } from "@/lib/security";
 
 /** Only live listings get a link; sample data is labelled as such. */
 export function AppraisalSources({ references }: { references: ComparableReference[] }) {
@@ -30,7 +25,7 @@ export function AppraisalSources({ references }: { references: ComparableReferen
             <span className="truncate text-amber-800">Sample reference · Sandbox only</span>
           )}
           <span className="font-mono text-[11px] tabular-nums text-[var(--ink-primary)]">
-            {idr.format(ref.priceIdr)}
+            {formatUsdFromSol(ref.priceSol)}
           </span>
         </li>
       ))}

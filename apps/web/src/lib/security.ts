@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 
 export const LAMPORTS_PER_SOL = 1_000_000_000;
-export const SOL_PRICE_IDR_ESTIMATE = 2_400_000; // Demo reference rate for UI display
+export const SOL_PRICE_USD_ESTIMATE = 150; // Reference rate for global USD display
+export const SOL_PRICE_IDR_ESTIMATE = 2_400_000; // Legacy compatibility rate
 
 const DEFAULT_DEV_HMAC_SECRET = "pawnchain-devnet-hmac-secret-do-not-use-in-prod";
 
@@ -57,6 +58,15 @@ export function calculateInterestLamports(principalLamports: number, interestBps
 
 export function formatSol(lamports: number): string {
   return `${(lamports / LAMPORTS_PER_SOL).toFixed(3)} SOL`;
+}
+
+export function formatUsdFromSol(sol: number): string {
+  const usd = Math.round(sol * SOL_PRICE_USD_ESTIMATE);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(usd);
 }
 
 export function formatIdrFromSol(sol: number): string {

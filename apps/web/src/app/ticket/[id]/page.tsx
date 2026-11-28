@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getTicketById } from "@/lib/store";
-import { formatIdrFromSol, lamportsToSol, shortenAddress } from "@/lib/security";
+import { formatUsdFromSol, lamportsToSol, shortenAddress } from "@/lib/security";
 import { TicketActionClient } from "@/components/TicketActionClient";
 import { AppraisalSources } from "@/components/AppraisalSources";
 import { syncDevnetTicket } from "@/lib/devnet";
@@ -19,10 +19,10 @@ export async function generateMetadata({
   const { id } = await params;
   const ticket = await getTicketById(id);
   if (!ticket) {
-    return { title: "Ticket Not Found — PawnChain" };
+    return { title: "Request not found — Spawn" };
   }
   const principalSol = lamportsToSol(ticket.principalLamports).toFixed(2);
-  const title = `PawnChain #${ticket.publicTicketId} — ${ticket.asset.brand} ${ticket.asset.model} (${principalSol} SOL)`;
+  const title = `Spawn #${ticket.publicTicketId} — ${ticket.asset.brand} ${ticket.asset.model} (${principalSol} SOL)`;
   const description = `Need ${principalSol} SOL · ${(ticket.interestBps / 100).toFixed(1)}% interest · ${ticket.tenorDays} days · ${
     ticket.appraisal.comparableReferences.length > 0
       ? `Estimated value ${ticket.appraisal.medianBenchmarkSol} SOL (LTV ${Math.round(ticket.ltv * 100)}%)`
@@ -94,7 +94,7 @@ export default async function ShareableTicketPage({
                 {principalSol.toFixed(2)} SOL
               </span>
               <span className="block font-mono text-xs text-[var(--ink-muted)]">
-                {formatIdrFromSol(principalSol)}
+                {formatUsdFromSol(principalSol)}
               </span>
             </div>
             <div>

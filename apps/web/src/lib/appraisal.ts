@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import type { AppraisalResult, AssetCondition, AssetType, ComparableReference } from "@/types/pawn";
-import { SOL_PRICE_IDR_ESTIMATE } from "./security";
+import { SOL_PRICE_IDR_ESTIMATE, SOL_PRICE_USD_ESTIMATE } from "./security";
 
 interface AppraisalInput {
   assetId: string;
@@ -33,6 +33,21 @@ function filterOutliers(pricesIdr: number[]): number[] {
   // Drop accessories or extreme anomalies (< 40% or > 200% of rough median)
   const filtered = pricesIdr.filter((p) => p >= med * 0.4 && p <= med * 2.0);
   return filtered.length > 0 ? filtered : pricesIdr;
+}
+
+const USD_TO_IDR = Math.round(SOL_PRICE_IDR_ESTIMATE / SOL_PRICE_USD_ESTIMATE);
+
+function extractUsdPricesFromText(text: string): number[] {
+  const matches = text.match(/(?:\$|USD\s?)(\d{2,5}(?:,\d{3})*(?:\.\d{1,2})?)/gi) || [];
+  const parsed: number[] = [];
+  for (const m of matches) {
+    const cleaned = m.replace(/[^0-9.]/g, "");
+    const val = Number(cleaned);
+    if (Number.isFinite(val) && val >= 40 && val <= 50_000) {
+      parsed.push(val);
+    }
+  }
+  return parsed;
 }
 
 function extractIdrPricesFromText(text: string): number[] {
@@ -84,7 +99,7 @@ async function fetchFirecrawlReferences(
   if (!apiKey) return null;
 
   try {
-    const query = `${brand} ${model} ${condition === "Mint" ? "mulus" : "bekas"} harga Rp`;
+    const query = `${brand} ${model} ${condition === "Mint" ? "mint" : "used"} price USD`;
     const res = await fetch("https://api.firecrawl.dev/v1/search", {
       method: "POST",
       headers: {
@@ -93,7 +108,7 @@ async function fetchFirecrawlReferences(
       },
       body: JSON.stringify({
         query,
-        limit: 6,
+        limit: 8,
       }),
       signal: AbortSignal.timeout(8000),
     });
@@ -108,10 +123,15 @@ async function fetchFirecrawlReferences(
 
     for (const item of payload.data || []) {
       const combined = `${item.title || ""} ${item.description || ""} ${item.markdown || ""}`;
-      const prices = extractIdrPricesFromText(combined);
-      if (prices.length === 0 || !item.url) continue;
+      const usdPrices = extractUsdPricesFromText(combined);
+      const idrPrices = usdPrices.length === 0 ? extractIdrPricesFromText(combined) : [];
+      if ((usdPrices.length === 0 && idrPrices.length === 0) || !item.url) continue;
 
-      const medianItemPrice = computeMedian(filterOutliers(prices));
+      const medianUsd =
+        usdPrices.length > 0
+          ? computeMedian(filterOutliers(usdPrices))
+          : computeMedian(filterOutliers(idrPrices)) / USD_TO_IDR;
+      const medianItemPriceIdr = Math.round(medianUsd * USD_TO_IDR);
       let host = "Web Listing";
       try {
         host = new URL(item.url).hostname.replace("www.", "");
@@ -123,8 +143,8 @@ async function fetchFirecrawlReferences(
         title: (item.title || `${brand} ${model}`).slice(0, 72),
         source: host,
         url: item.url,
-        priceIdr: medianItemPrice,
-        priceSol: Number((medianItemPrice / SOL_PRICE_IDR_ESTIMATE).toFixed(3)),
+        priceIdr: medianItemPriceIdr,
+        priceSol: Number((medianUsd / SOL_PRICE_USD_ESTIMATE).toFixed(3)),
         fetchedAt: now,
         sourceType: "firecrawl_live",
       });

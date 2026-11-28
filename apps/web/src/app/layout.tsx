@@ -19,13 +19,18 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
+  icons: {
+    icon: "/logo.jpg",
+    apple: "/logo.jpg",
+  },
   title: {
-    default: "PawnChain — Your Assets. Your Liquidity. Verified On-Chain.",
-    template: "%s | PawnChain",
+    default: "Spawn — Your Assets. Your Liquidity. Verified On-Chain.",
+    template: "%s | Spawn",
   },
   description:
     "Unlock the value of physical and digital assets through AI-powered appraisal, verified physical custody, and transparent Solana-powered escrow.",
   keywords: [
+    "Spawn",
     "Solana",
     "DeFi",
     "Collateral Financing",
@@ -35,15 +40,15 @@ export const metadata: Metadata = {
     "Dev3pack",
   ],
   openGraph: {
-    title: "PawnChain — Your Assets. Your Liquidity. Verified On-Chain.",
+    title: "Spawn — Your Assets. Your Liquidity. Verified On-Chain.",
     description:
       "Unlock the value of physical and digital assets through AI-powered appraisal, verified physical custody, and transparent Solana-powered escrow.",
-    siteName: "PawnChain",
+    siteName: "Spawn",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "PawnChain — Your Assets. Your Liquidity. Verified On-Chain.",
+    title: "Spawn — Your Assets. Your Liquidity. Verified On-Chain.",
     description:
       "AI-powered asset valuation, verified physical custody, and transparent Solana escrow.",
   },

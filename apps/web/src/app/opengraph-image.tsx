@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "PawnChain — AI-Powered P2P Pawnshop & RWA Escrow on Solana";
+export const alt = "Spawn — Your Assets. Your Liquidity. Verified On-Chain.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -36,9 +36,9 @@ export default function OpenGraphImage() {
                 fontWeight: 800,
               }}
             >
-              P
+              S
             </div>
-            <div style={{ fontSize: "30px", fontWeight: 800, color: "#0f172a" }}>PawnChain</div>
+            <div style={{ fontSize: "30px", fontWeight: 800, color: "#0f172a" }}>Spawn</div>
           </div>
           <div
             style={{
@@ -51,7 +51,7 @@ export default function OpenGraphImage() {
               padding: "8px 20px",
             }}
           >
-            Solana Devnet · Dev3pack Global Hackathon
+            Dev3pack Global Hackathon
           </div>
         </div>
 
