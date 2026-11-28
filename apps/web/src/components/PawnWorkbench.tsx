@@ -436,9 +436,9 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
             <div className="flex items-center gap-2.5">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/logo.jpg"
+                src="/logo.png"
                 alt="Spawn logo"
-                className="h-8 w-8 shrink-0 rounded-md border border-[var(--border-ledger)] object-cover"
+                className="h-8 w-8 shrink-0 object-contain"
               />
               <span className="text-base font-bold tracking-tight text-[var(--ink-primary)]">
                 Spawn
