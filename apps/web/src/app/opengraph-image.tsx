@@ -65,11 +65,11 @@ export default function OpenGraphImage() {
               letterSpacing: "-0.02em",
             }}
           >
-            What if your assets could unlock liquidity without losing trust?
+            Unlock liquidity from your assets. Without compromising trust.
           </div>
           <div style={{ fontSize: "24px", color: "#526071", lineHeight: 1.4 }}>
-            Unlock the value of physical and digital assets through AI-powered appraisal, verified
-            physical custody, and transparent Solana-powered escrow.
+            Turn physical and digital assets into financing opportunities through AI-driven
+            valuation, verified custody, and transparent Solana-powered escrow.
           </div>
         </div>
 

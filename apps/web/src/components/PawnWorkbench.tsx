@@ -37,7 +37,7 @@ const WalletMultiButton = dynamic(
   { ssr: false }
 );
 
-type MarketFilter = "ALL" | "OPEN" | "PENDING_VERIFICATION" | "ACTIVE" | "REPAID";
+type MarketFilter = "ALL" | "OPEN" | "PENDING_VERIFICATION" | "ACTIVE" | "REPAID" | "CANCELLED";
 
 const LAMPORTS_PER_SOL = 1_000_000_000;
 const SOL_USD_RATE = 150;
@@ -1122,6 +1122,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
                       ["PENDING_VERIFICATION", t.filterCheck],
                       ["ACTIVE", t.filterActive],
                       ["REPAID", t.filterRepaid],
+                      ["CANCELLED", t.filterCancelled],
                     ] as const
                   ).map(([key, label]) => (
                     <button
@@ -1386,24 +1387,24 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         <div className="mx-auto flex max-w-7xl flex-col gap-2 px-4 text-xs text-[var(--ink-muted)] sm:px-6 md:flex-row md:items-center md:justify-between">
           <div>
             <span className="font-semibold text-[var(--ink-primary)]">Spawn</span>
-            <span className="mx-1.5">·</span>
+            <span className="mx-1.5">|</span>
             <span>Built for Dev3pack Global Hackathon</span>
           </div>
-          <div className="flex flex-wrap items-center gap-3 font-mono text-[11px]">
+          <div className="flex flex-wrap items-center gap-2.5 font-mono text-[11px]">
+            <span>AI Market Appraisal</span>
+            <span>·</span>
+            <span>Verified Physical Custody</span>
+            <span>·</span>
             <a
               href={explorerAddressUrl(PROGRAM_ID.toBase58())}
               target="_blank"
               rel="noreferrer"
               className="text-[var(--accent-vault)] hover:underline"
             >
-              Solana Anchor Program ↗
+              Solana Smart Contract Escrow ↗
             </a>
             <span>·</span>
-            <span>AI Market Appraisal</span>
-            <span>·</span>
-            <span>Voice Terms</span>
-            <span>·</span>
-            <span>Supabase-powered ledger</span>
+            <span>Voice-Assisted Loan Terms</span>
           </div>
         </div>
       </footer>

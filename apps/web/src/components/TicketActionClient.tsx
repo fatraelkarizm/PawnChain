@@ -109,7 +109,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("custody_attest")}
             className="rounded bg-amber-700 hover:bg-amber-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Verify collateral
+            Verify Collateral
           </button>
         )}
 
@@ -120,7 +120,7 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("fund")}
             className="rounded bg-[var(--accent-vault)] hover:bg-[var(--accent-vault-hover)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Fund loan ({principalSol.toFixed(2)} SOL)
+            Fund This Request ({principalSol.toFixed(2)} SOL)
           </button>
         )}
 
@@ -131,21 +131,21 @@ export function TicketActionClient({ ticket }: { ticket: PawnTicket }) {
             onClick={() => runAction("repay")}
             className="rounded bg-[var(--ink-primary)] hover:bg-slate-800 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
           >
-            Repay and reclaim collateral ({totalDue} SOL)
+            Repay &amp; Reclaim Collateral ({totalDue} SOL)
           </button>
         )}
 
         {isBorrower && (ticket.status === "PENDING_VERIFICATION" || ticket.status === "OPEN") && (
           <span className="text-xs text-[var(--ink-muted)]">
             {ticket.status === "OPEN"
-              ? "Waiting for lender funding"
-              : "Custodian access is required to verify this asset."}
+              ? "Waiting for a lender to fund this request."
+              : "Collateral verification is required before funding."}
           </span>
         )}
 
         {isOtherWallet && ticket.status === "ACTIVE" && (
           <span className="text-xs text-[var(--ink-muted)]">
-            Active loan · Awaiting borrower repayment
+            Financing successfully funded. Awaiting repayment.
           </span>
         )}
       </div>
