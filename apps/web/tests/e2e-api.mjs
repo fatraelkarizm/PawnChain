@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.BASE_URL || "http://localhost:3000";
 
 async function req(path, options = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -21,7 +21,7 @@ async function run() {
   // 1. Home HTML renders cleanly
   const home = await req("/");
   assert.equal(home.status, 200, "Home page should return 200");
-  assert.ok(String(home.data).includes("PawnChain"), "Home HTML should contain PawnChain");
+  assert.ok(String(home.data).includes("Spawn"), "Home HTML should contain Spawn");
 
   // 2. Seeded tickets load
   const list1 = await req("/api/v1/tickets");
