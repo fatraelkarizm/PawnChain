@@ -427,7 +427,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
     filter === "ALL" ? tickets : tickets.filter((tItem) => tItem.status === filter);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col overflow-x-hidden">
       {/* Top Utility Bar */}
       <header className="sticky top-0 z-30 border-b border-[var(--border-ledger)] bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-2.5 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
@@ -495,7 +495,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
             </div>
 
             {/* Sandbox Mode Toggle & Role Switcher */}
-            <div className="flex min-w-0 flex-1 items-center gap-1 rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-1 sm:flex-initial">
+            <div className="flex w-full min-w-0 items-center justify-between gap-1 rounded-md border border-[var(--border-ledger)] bg-[var(--bg-canvas)] p-1 sm:w-auto sm:justify-start">
               <button
                 type="button"
                 onClick={() => setSandboxEnabled((v) => !v)}
@@ -523,7 +523,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
               )}
             </div>
 
-            <div className="shrink-0">
+            <div className="w-full shrink-0 sm:w-auto [&_.wallet-adapter-button]:w-full [&_.wallet-adapter-button]:justify-center sm:[&_.wallet-adapter-button]:w-auto">
               <WalletMultiButton />
             </div>
 
@@ -585,7 +585,7 @@ export function PawnWorkbench({ initialTickets }: { initialTickets: PawnTicket[]
         </div>
 
         {/* 4-Step Mechanism Strip */}
-        <div className="mb-6 grid grid-cols-2 gap-2.5 rounded-lg border border-[var(--border-ledger)] bg-white p-3 shadow-xs sm:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-2 rounded-lg border border-[var(--border-ledger)] bg-white p-3 shadow-xs sm:grid-cols-2 lg:grid-cols-4">
           {[
             { Icon: Search, text: t.step1 },
             { Icon: Lock, text: t.step2 },
