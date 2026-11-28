@@ -48,7 +48,7 @@ function buildSeedTickets(): PawnTicket[] {
         category: "Electronics",
         brand: "Apple",
         model: "iPhone 13 Pro 256GB",
-        description: "Fullset box, battery health 89%, tanpa retak. Data contoh untuk sandbox.",
+        description: "Original box included, 89% battery health, no screen cracks. Verified at custody hub.",
         serialHash: hashAssetIdentifier("356984110029384"),
         mintAddress: "RWA13ProMintDevnet111111111111111111111111",
         condition: "Good",
@@ -69,8 +69,8 @@ function buildSeedTickets(): PawnTicket[] {
         riskLevel: "LOW",
         confidenceScore: 0.89,
         riskFactors: [
-          "IMEI lolos cek duplikasi (HMAC registry bersih)",
-          "Custody Hub Jakarta sudah menandatangani attestation",
+          "IMEI passed duplicate collateral check (HMAC registry clear)",
+          "Custody Hub signed physical verification attestation",
         ],
         missingInformation: [],
         comparableReferences: [
@@ -124,7 +124,7 @@ function buildSeedTickets(): PawnTicket[] {
         category: "NFT",
         brand: "Mad Lads",
         model: "Mad Lads #4821 (Devnet)",
-        description: "Sandbox example of NFT collateral.",
+        description: "Verified Solana NFT collateral locked in simulated sandbox escrow.",
         serialHash: null,
         mintAddress: "MadLadsDemoMintDevnet2222222222222222222222",
         condition: "Mint",
@@ -144,7 +144,7 @@ function buildSeedTickets(): PawnTicket[] {
         riskScore: 18,
         riskLevel: "LOW",
         confidenceScore: 0.92,
-        riskFactors: ["Aset digital dikunci 100% on-chain di PDA Escrow"],
+        riskFactors: ["Digital collateral locked in Solana PDA escrow"],
         missingInformation: [],
         comparableReferences: [
           {
